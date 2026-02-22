@@ -1,0 +1,40 @@
+{"ts":"2026-02-20T19:25:22.920Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":0,"success":false}
+{"ts":"2026-02-20T19:27:19.790Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":0,"success":false}
+{"ts":"2026-02-20T19:27:51.766Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":1,"success":false}
+{"ts":"2026-02-20T19:55:40.138Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":180,"success":false}
+{"ts":"2026-02-20T19:58:27.038Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":224,"success":false}
+{"ts":"2026-02-20T20:03:10.635Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":144,"success":false}
+{"ts":"2026-02-20T20:47:56.112Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":227,"success":false}
+{"ts":"2026-02-20T20:50:04.750Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":681,"success":false}
+{"ts":"2026-02-20T21:00:43.130Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":784,"success":false}
+{"ts":"2026-02-20T21:00:57.315Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":478,"success":false}
+{"ts":"2026-02-20T21:02:26.425Z","message":"GET /api/query/mrrpv","toolCalls":[],"latencyMs":405,"success":false}
+{"ts":"2026-02-20T21:04:41.447Z","message":"GET /api/query/mrrpv","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY27 Q1","group_by":"geo"}}],"rowCount":64,"latencyMs":1634,"success":true}
+{"ts":"2026-02-20T21:07:10.027Z","message":"GET /api/query/mrrpv","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY27 Q1","group_by":"geo"}}],"rowCount":64,"latencyMs":741,"success":true}
+{"ts":"2026-02-20T21:09:48.878Z","message":"GET /api/query/mrrpv","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY27 Q1","group_by":"geo"}}],"rowCount":16,"latencyMs":632,"success":true}
+{"ts":"2026-02-20T21:14:39.690Z","message":"POST /api/query/mrrpv","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY27 Q1","group_by":"geo"}}],"rowCount":16,"latencyMs":1019,"success":true}
+{"ts":"2026-02-20T21:15:02.553Z","message":"GET /api/query/mrrpv","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY27 Q1","group_by":"segment"}}],"rowCount":10,"latencyMs":1419,"success":true}
+{"ts":"2026-02-20T21:21:21.849Z","sessionId":"conv-1771622480341","message":"what was the MRRpV in the US in FY26 Q4?","toolCalls":[],"latencyMs":1508,"success":false}
+{"ts":"2026-02-20T21:25:36.797Z","sessionId":"conv-1771622735222","message":"what was US MRRpV in FY26 Q4","toolCalls":[],"latencyMs":1575,"success":false}
+{"ts":"2026-02-20T21:27:48.020Z","sessionId":"conv-1771622866385","message":"tes","toolCalls":[],"latencyMs":1635,"success":false}
+{"ts":"2026-02-20T21:52:18.026Z","sessionId":"conv-1771624336480","message":"test","toolCalls":[],"latencyMs":1546,"success":false}
+{"ts":"2026-02-20T21:56:17.739Z","sessionId":"conv-1771624576121","message":"test","toolCalls":[],"latencyMs":1618,"success":false}
+{"ts":"2026-02-20T22:02:36.082Z","sessionId":"conv-1771624954478","message":"test","toolCalls":[],"latencyMs":1604,"success":false}
+{"ts":"2026-02-20T22:07:13.189Z","sessionId":"conv-1771625231708","message":"test","toolCalls":[],"latencyMs":1480,"success":true}
+{"ts":"2026-02-20T22:16:10.354Z","sessionId":"conv-1771625765144","message":"“What was MRRpV by region for FY27 Q1?”","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY27 Q1","group_by":"geo"}}],"rowCount":16,"latencyMs":5210,"success":true}
+{"ts":"2026-02-20T22:16:42.304Z","sessionId":"conv-1771625765144","message":"sort by vehicle count","toolCalls":[],"latencyMs":4007,"success":true}
+{"ts":"2026-02-20T22:17:22.808Z","sessionId":"conv-1771625765144","message":"divide the mrrpv numbers by 12","toolCalls":[],"latencyMs":1685,"success":true}
+{"ts":"2026-02-20T22:18:06.636Z","sessionId":"conv-1771625765144","message":"what was the first purchase MRRpV by industry in FY26 Q3","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q3","group_by":"segment"}}],"rowCount":10,"latencyMs":5227,"success":true}
+{"ts":"2026-02-20T22:21:20.570Z","sessionId":"conv-1771626078985","message":"what was mrrpv by geography in FY26 Q2","toolCalls":[],"latencyMs":1584,"success":false}
+{"ts":"2026-02-20T22:24:13.400Z","sessionId":"conv-1771626246237","message":"what was mrrpv by industry in FY26 Q2","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q2","group_by":"segment"}}],"rowCount":10,"latencyMs":7161,"success":true}
+{"ts":"2026-02-20T22:30:18.745Z","sessionId":"conv-1771626612857","message":"What was first purchase mrrpv by industry in FY26 Q3","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q3","group_by":"segment"}}],"rowCount":5,"latencyMs":5887,"success":true}
+{"ts":"2026-02-20T22:34:28.053Z","sessionId":"conv-1771626612857","message":"What was first purchase mrrpv by industry in FY26 Q3","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q3","group_by":"segment"}}],"rowCount":5,"latencyMs":4465,"success":true}
+{"ts":"2026-02-20T22:35:42.716Z","sessionId":"conv-1771626939829","message":"What was mrrpv by industry in FY26 Q3","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q3","group_by":"industry"}}],"latencyMs":2887,"success":true}
+{"ts":"2026-02-20T23:29:46.035Z","sessionId":"conv-1771630183259","message":"What was mrrpv in FY26 Q4","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q4"}}],"latencyMs":2776,"success":true}
+{"ts":"2026-02-20T23:30:17.872Z","sessionId":"conv-1771630183259","message":"by segment","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q4","group_by":"segment"}}],"rowCount":5,"latencyMs":4113,"success":true}
+{"ts":"2026-02-20T23:47:43.108Z","sessionId":"conv-1771631259383","message":"What was MRRpV in FY26 Q4","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q4"}}],"latencyMs":3724,"success":true}
+{"ts":"2026-02-20T23:48:03.811Z","sessionId":"conv-1771631259383","message":"segment","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q4","group_by":"segment"}}],"rowCount":5,"latencyMs":6598,"success":true}
+{"ts":"2026-02-20T23:49:51.337Z","sessionId":"conv-1771631259383","message":"give it by industry again","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q4","group_by":"industry"}}],"rowCount":16,"latencyMs":5477,"success":true}
+{"ts":"2026-02-20T23:50:04.813Z","sessionId":"conv-1771631259383","message":"back to segment","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q4","group_by":"segment"}}],"rowCount":5,"latencyMs":4930,"success":true}
+{"ts":"2026-02-20T23:50:39.839Z","sessionId":"conv-1771631259383","message":"What was the MRRpV by segment for deals that included AI Multicam?","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q4","group_by":"segment","include_product":"aim4"}}],"rowCount":5,"latencyMs":4459,"success":true}
+{"ts":"2026-02-21T00:01:54.318Z","sessionId":"conv-1771631259383","message":"how about for FY26 Q3 and Q4","toolCalls":[{"name":"get_mrrpv","args":{"time_window":"FY26 Q3","group_by":"segment","include_product":"aim4"}},{"name":"get_mrrpv","args":{"time_window":"FY26 Q4","group_by":"segment","include_product":"aim4"}}],"rowCount":5,"latencyMs":14153,"success":true}

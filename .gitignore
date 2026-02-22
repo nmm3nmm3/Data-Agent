@@ -1,0 +1,36 @@
+# P&P Financial Metrics - never commit or push to GitHub
+P&P Financial Metrics/
+"P&P Financial Metrics/"
+
+# Dependencies
+node_modules/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+frontend/dist/
+
+# Logs and runtime
+*.log
+npm-debug.log*
+data/*.db
+data/*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Optional: Tableau extracts and workbooks (if any other sensitive paths)
+# *.twbx
+# *.tde
