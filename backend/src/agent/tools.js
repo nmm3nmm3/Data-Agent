@@ -2,15 +2,15 @@
  * OpenAI function/tool definitions. The model only invokes these; it does not perform calculations.
  * Data source (first_purchase, upsell, fleet) is set by the user via the UI and passed in context.
  */
-import { getMRRpV, DATA_SOURCES } from '../queries/mrrpv.js';
+import { getMRRpV, getBridgeMRRpV, DATA_SOURCES } from '../queries/mrrpv.js';
 import { resolveProductArea } from '../queries/column-glossary.js';
 
 export const MRRPV_TOOL = {
   type: 'function',
   function: {
     name: 'get_mrrpv',
-    description:
-      'Get MRRpV from Databricks. Call for every MRRpV question. Supports one quarter or multiple: pass time_window as one value ("FY26 Q4") or comma-separated ("FY25 Q3,FY26 Q3,FY27 Q3") to get a table with a row per (group, quarter). For "last three Q3s" or "by industry for the last three Q3s" pass time_window "FY25 Q3,FY26 Q3,FY27 Q3" and group_by "industry"—you will get one row per industry per quarter. For overall/total, omit group_by. When the user is refining the current view (e.g. remove EMEA, exclude MM, remove CML), pass ALL existing row filters from the current view plus any new one—multiple filter types can be used in the same call. Never change group_by when the user only asks to exclude or include rows (e.g. "exclude MM accounts"): keep the same group_by so the table stays industry, geo_segment, or overall. Data source is set by the user in the app.',
+      description:
+            'Get MRRpV from Databricks. Call for every MRRpV question. Supports one quarter or multiple: pass time_window as one value ("FY26 Q4") or comma-separated quarters. For overall/total or for the MRRpV Bridge view, omit group_by. When the user is on a preset view and only asks to filter or restrict data (e.g. "only US accounts", "exclude EMEA", "remove MM"), keep the SAME view: pass the same preset_id and view_type (for bridge use view_type "bridge" and preset_id "first-purchase-bridge") and do NOT change group_by. Never switch view type or group_by unless the user explicitly asks for a different view or breakdown. When refining the current view, pass ALL existing filters from the current view plus any new one. Data source is set by the user in the app.',
     parameters: {
       type: 'object',
       properties: {
@@ -87,6 +87,17 @@ export const MRRPV_TOOL = {
           type: 'string',
           description: 'Optional filter by a single industry (use industries or exclude_industries for multiple).',
         },
+        view_type: {
+          type: 'string',
+          enum: ['bridge'],
+          description:
+            'Optional. Set to "bridge" ONLY when the user is on the MRRpV Bridge preset and is filtering or refining that view (e.g. "only US accounts"). Do NOT set when the user is on industry, geo_segment, or overall view. When set, do NOT set group_by; the bridge has no group_by. Pass time_window and filters (e.g. regions) as needed.',
+        },
+        preset_id: {
+          type: 'string',
+          description:
+            'Optional. When the user is on a preset view and only asks to filter or refine (e.g. exclude rows, only US), pass the same preset id so the view type does not change. For MRRpV Bridge use "first-purchase-bridge". Do NOT pass a different preset_id than the current view unless the user explicitly asks for a different view.',
+        },
       },
       required: [],
     },
@@ -138,6 +149,21 @@ export async function executeTool(name, args, context = {}) {
     const includeAccountCount = args?.include_account_count === true;
     const includeAvgDealSize = args?.include_avg_deal_size === true;
     const includeAcv = args?.include_acv !== false;
+    const viewType = args?.view_type;
+    const presetId = args?.preset_id;
+    const useBridge = viewType === 'bridge' || presetId === 'first-purchase-bridge';
+    if (useBridge) {
+      const bridgeResult = await getBridgeMRRpV({ timeWindow, filters });
+      return {
+        success: true,
+        data: bridgeResult.data,
+        columns: bridgeResult.columns,
+        rowCount: bridgeResult.rows?.length ?? 0,
+        overall: undefined,
+        viewType: 'bridge',
+        grandTotals: bridgeResult.grandTotals,
+      };
+    }
     const result = await getMRRpV({ dataSource, timeWindow, groupBy, filters, includeProduct, includeAccountCount, includeAvgDealSize, includeAcv });
     return {
       success: true,

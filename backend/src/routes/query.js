@@ -2,23 +2,28 @@
  * Query API: MRRpV and future metrics.
  */
 import express from 'express';
-import { getMRRpV } from '../queries/mrrpv.js';
+import { getMRRpV, getBridgeMRRpV } from '../queries/mrrpv.js';
 import { logUsage } from '../storage/usage.js';
 
 const router = express.Router();
 
 /**
  * POST /api/query/mrrpv
- * Body: { dataSource?, timeWindow?, groupBy?, filters?: { region?, segment? }, includeProduct? }
+ * Body: { dataSource?, timeWindow?, groupBy?, filters?, includeProduct?, viewType?: 'bridge', presetId? }
+ * When viewType === 'bridge' or presetId === 'first-purchase-bridge', runs bridge query instead.
  */
 router.post('/mrrpv', async (req, res) => {
   const start = Date.now();
   try {
-    const { dataSource, timeWindow, groupBy, filters, includeProduct, includeAccountCount, includeAvgDealSize } = req.body || {};
-    const result = await getMRRpV({ dataSource, timeWindow, groupBy, filters, includeProduct, includeAccountCount, includeAvgDealSize });
+    const body = req.body || {};
+    const { dataSource, timeWindow, groupBy, filters, includeProduct, includeAccountCount, includeAvgDealSize, viewType, presetId } = body;
+    const useBridge = viewType === 'bridge' || presetId === 'first-purchase-bridge';
+    const result = useBridge
+      ? await getBridgeMRRpV({ timeWindow, filters: filters || {} })
+      : await getMRRpV({ dataSource, timeWindow, groupBy, filters, includeProduct, includeAccountCount, includeAvgDealSize });
     logUsage({
       message: 'POST /api/query/mrrpv',
-      toolCalls: [{ name: 'get_mrrpv', args: { time_window: timeWindow, group_by: groupBy, include_product: includeProduct, include_account_count: includeAccountCount, include_avg_deal_size: includeAvgDealSize, ...filters } }],
+      toolCalls: [{ name: useBridge ? 'get_bridge_mrrpv' : 'get_mrrpv', args: useBridge ? { time_window: timeWindow, ...filters } : { time_window: timeWindow, group_by: groupBy, include_product: includeProduct, include_account_count: includeAccountCount, include_avg_deal_size: includeAvgDealSize, ...filters } }],
       rowCount: result.rows?.length,
       latencyMs: Date.now() - start,
       success: true,

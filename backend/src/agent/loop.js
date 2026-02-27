@@ -38,7 +38,8 @@ function buildPresetPrompt() {
   return (
     'Preset views (use as starting points; apply overrides from the user): ' +
     list +
-    '. Overridable params: time_window, group_by, include_product, region, segment, exclude_regions, regions, exclude_segments, segments, exclude_industries, industries, include_acv. When the user asks to remove specific rows use exclude_segments, exclude_regions, or exclude_industries (map plain-English to table values per docs/mrrpv-schema-mapping.md, e.g. public sector → ["US-SLED","US - SLED"], EMEA → ["UK","DACH","FR","BNL"]) — and keep the SAME group_by and time_window. When the user asks to include or restore previously excluded rows (e.g. "include EMEA again", "restore public sector", "add CML back"), remove those values from the corresponding exclude_* list so that data appears again; if the list would be empty, omit that parameter entirely. Do NOT omit time_window (that returns all quarters from FY18). Do NOT switch presets or group_by unless the user explicitly asks for a different view. Use exact dimension values from the table. When the user asks to remove or show ACV columns, set include_acv to false or true. Preserve include_acv from the current view when making other changes.\n' +
+    '. Overridable params depend on the preset: time_window, group_by (only for non-bridge presets), include_product, region, segment, exclude_regions, regions, exclude_segments, segments, exclude_industries, industries, include_acv. When the user asks to remove or include specific rows, use exclude_segments, exclude_regions, or exclude_industries (map plain-English to table values per docs/mrrpv-schema-mapping.md, e.g. public sector → ["US-SLED","US - SLED"], EMEA → ["UK","DACH","FR","BNL"]) — and keep the SAME view type (same preset_id and group_by). When the user asks to include or restore previously excluded rows (e.g. "include EMEA again", "restore public sector", "add CML back"), remove those values from the corresponding exclude_* list so that data appears again; if the list would be empty, omit that parameter entirely. Do NOT omit time_window (that returns all quarters from FY18). NEVER switch presets or change group_by unless the user explicitly asks for a different view or breakdown (e.g. "show me by industry", "switch to geo-segment view"). Use exact dimension values from the table. When the user asks to remove or show ACV columns, set include_acv to false or true. Preserve include_acv from the current view when making other changes.\n' +
+    'MRRpV Bridge (id: first-purchase-bridge) has no group_by; it shows overall metrics by quarter. To filter the bridge (e.g. only US accounts), pass view_type: "bridge" and preset_id: "first-purchase-bridge" with time_window and filters (e.g. regions: ["US"]). Do NOT set group_by when the user is on the bridge.\n' +
     'For comparisons like "AIM4 vs not AIM4": call get_mrrpv TWICE—once with include_product set to that product, once without—then present both outcomes.\n\n'
   );
 }
@@ -46,16 +47,28 @@ function buildPresetPrompt() {
 function buildCurrentViewPrompt(currentView) {
   if (!currentView || typeof currentView !== 'object') return '';
   const label = currentView.label || currentView.presetId || 'current view';
+  const isBridge = currentView.presetId === 'first-purchase-bridge';
   const parts = [
     `The user is currently viewing: ${label}.`,
-    'CRITICAL: When they ask to remove or include specific rows (e.g. "exclude MM", "don\'t include MM accounts", "remove EMEA", "remove CML"), you MUST keep the SAME group_by and time_window. Do NOT switch to a different view type: if they are on the industry view, keep group_by "industry" and apply exclude_segments or other filters so the industry numbers update; if they are on geo-segment view, keep group_by "geo_segment". Only change group_by if the user explicitly asks to see a different breakdown (e.g. "show me by geo instead").',
-    'Call get_mrrpv with the SAME time_window and group_by and the appropriate row filter. Do not say you cannot modify the data.',
+    'CRITICAL — NEVER switch view type or preset when the user only asks to filter or restrict the data (e.g. "only US accounts", "exclude EMEA", "remove MM", "don\'t include public sector"). Apply the requested filter (regions, exclude_regions, segments, exclude_segments, industries, exclude_industries) while keeping the SAME view. Only change group_by or switch to a different preset when the user explicitly asks for a different view or breakdown (e.g. "show me by industry", "switch to geo-segment view"). If you cannot apply the requested filter to the current view, say so instead of switching view.',
   ];
+  if (isBridge) {
+    parts.push(
+      'This is the MRRpV Bridge view. It has NO group_by. To filter it (e.g. only US, exclude EMEA), pass view_type: "bridge" and preset_id: "first-purchase-bridge" with the same time_window and the filter (e.g. regions: ["US"] or exclude_regions: ["UK","DACH","FR","BNL"] for EMEA). Do NOT set group_by — if you set group_by you will replace the bridge with a different view and the user will lose the bridge table.'
+    );
+  } else {
+    parts.push(
+      'When they ask to remove or include specific rows (e.g. "exclude MM", "remove EMEA", "remove CML"), keep the SAME group_by and time_window: if they are on the industry view, keep group_by "industry" and apply exclude_segments or other filters; if on geo-segment view, keep group_by "geo_segment". Only change group_by if the user explicitly asks to see a different breakdown (e.g. "show me by geo instead"). Call get_mrrpv with the SAME time_window and group_by and the appropriate row filter. Do not say you cannot modify the data.'
+    );
+  }
   if (currentView.time_window) {
     parts.push(`Time: ${currentView.time_window}. You MUST pass time_window: "${currentView.time_window}" — do not omit it or change it when the user only asks to exclude or include rows. If you omit time_window, the query returns ALL quarters (e.g. from FY18), which is wrong.`);
   }
-  if (currentView.group_by) {
+  if (currentView.group_by && !isBridge) {
     parts.push(`Group by: ${currentView.group_by}. You MUST pass group_by: "${currentView.group_by}" — do not change it when the user only asks to exclude or include rows.`);
+  }
+  if (isBridge) {
+    parts.push('Pass preset_id: "first-purchase-bridge" and view_type: "bridge" so the result remains the bridge table.');
   }
   const hasFilters =
     (Array.isArray(currentView.exclude_regions) && currentView.exclude_regions.length > 0) ||

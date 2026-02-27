@@ -107,6 +107,8 @@ router.post('/', async (req, res) => {
             columns: lastResult.columns,
             rowCount: lastResult.rowCount,
             overall: lastResult.overall,
+            viewType: lastResult.viewType,
+            grandTotals: lastResult.grandTotals,
           }
         : undefined,
       lastToolError: lastToolError || undefined,

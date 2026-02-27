@@ -172,9 +172,9 @@ Node cannot verify OpenAI’s TLS certificate. This often happens on corporate n
 
 - **Local dev only (insecure):** Run with certificate verification disabled:
   ```bash
-  NODE_TLS_REJECT_UNAUTHORIZED=0 npm run dev
+  npm run dev:insecure
   ```
-  Do not use this in production.
+  Or: `NODE_TLS_REJECT_UNAUTHORIZED=0 npm run dev`. Do not use this in production.
 
 - **Better (use your org’s CA bundle):** Export your corporate/intermediate CA cert(s) to a `.pem` file, then:
   ```bash

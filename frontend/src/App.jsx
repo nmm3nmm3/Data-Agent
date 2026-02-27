@@ -42,6 +42,27 @@ const TIME_METRIC_ROWS = [
   { key: 'avg_deal_size', label: 'Avg deal size', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—') },
 ];
 
+/** Bridge view: metric rows in display order with format and boldGrandTotal. */
+const BRIDGE_METRIC_ROWS = [
+  { key: 'vehicle_count', label: 'First Purchase Vehicles', format: (v) => (v != null && Number.isFinite(Number(v)) ? Number(v).toLocaleString() : '—'), boldGrandTotal: true },
+  { key: 'acv', label: 'First Purchase ACV', format: formatAcvPivot, boldGrandTotal: true },
+  { key: 'fleet_mrrpv', label: 'First Purchase MRRpV', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true },
+  { key: 'vg_asp', label: 'VG ASP', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: false },
+  { key: 'cm_asp', label: 'CM ASP', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: false },
+  { key: 'vg_attach_pct', label: 'VG Attach', format: (v) => (v != null && Number.isFinite(Number(v)) ? `${Number(v).toFixed(1)}%` : '—'), boldGrandTotal: false },
+  { key: 'cm_attach_pct', label: 'CM Attach', format: (v) => (v != null && Number.isFinite(Number(v)) ? `${Number(v).toFixed(1)}%` : '—'), boldGrandTotal: false },
+  { key: 'vg_core_contribution', label: 'VG Core Contribution', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true },
+  { key: 'cm_core_contribution', label: 'CM Core Contribution', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true },
+  { key: 'vgcm_core_contribution', label: 'VG/CM Core Contribution', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true },
+  { key: 'vgcm_addon_contribution', label: 'VG/CM Add-on Contribution', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true },
+  { key: 'st_contribution', label: 'Smart Trailers Contribution', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true },
+  { key: 'flapps_contribution', label: 'All Fleet Apps Contribution', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true },
+  { key: 'cc_contribution', label: 'Camera Connector Contribution', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true },
+  { key: 'other_contribution', label: 'All Other Contribution', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true },
+  { key: 'subsidy_contribution', label: 'Subsidy Contribution', format: (v) => (v != null && Number.isFinite(Number(v)) ? (Number(v) < 0 ? `(${Math.abs(Number(v)).toFixed(2)})` : `$${Number(v).toFixed(2)}`) : '—'), boldGrandTotal: true },
+  { key: 'mrrpv_bottom', label: 'MRRpV', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—'), boldGrandTotal: true, dataKey: 'fleet_mrrpv' },
+];
+
 /**
  * Build pivot view when data has close_quarter and one row per period (no group by dimension).
  * Returns { usePivot: boolean, timeColumns: string[], metricRows: { label, key, valuesByQuarter: {}, grandTotal } } or { usePivot: false }.
@@ -94,6 +115,37 @@ function buildTimePivot(cols, dataRows) {
     return { label, key, valuesByQuarter, grandTotal: grandTotalRaw };
   });
 
+  return { usePivot: true, timeColumns: quarters, metricRows };
+}
+
+/**
+ * Build bridge pivot from bridge API response (one row per quarter + grandTotals).
+ * Returns { usePivot: true, timeColumns, metricRows } with boldGrandTotal per row.
+ */
+function buildBridgePivot(dataRows, grandTotals = {}) {
+  if (!dataRows?.length) return { usePivot: false };
+  const quarters = [...new Set(dataRows.map((r) => r.close_quarter).filter(Boolean))].sort();
+  if (quarters.length === 0) return { usePivot: false };
+  const byQuarter = {};
+  quarters.forEach((q) => {
+    byQuarter[q] = dataRows.find((r) => r.close_quarter === q) || {};
+  });
+  const metricRows = BRIDGE_METRIC_ROWS.map((spec) => {
+    const key = spec.dataKey ?? spec.key;
+    const valuesByQuarter = {};
+    quarters.forEach((q) => {
+      valuesByQuarter[q] = byQuarter[q][key];
+    });
+    const grandTotal = grandTotals[key] ?? grandTotals[spec.key];
+    return {
+      key: spec.key,
+      label: spec.label,
+      valuesByQuarter,
+      grandTotal,
+      boldGrandTotal: spec.boldGrandTotal !== false,
+      format: spec.format,
+    };
+  });
   return { usePivot: true, timeColumns: quarters, metricRows };
 }
 
@@ -515,6 +567,8 @@ export default function App() {
         includeProduct: p.includeProduct,
         includeAccountCount: p.includeAccountCount ?? true,
         includeAvgDealSize: p.includeAvgDealSize ?? false,
+        viewType: p.viewType,
+        presetId: view.id,
       };
       const res = await fetch(`${API}/query/mrrpv`, {
         method: 'POST',
@@ -533,6 +587,8 @@ export default function App() {
         columns: result.columns,
         rowCount: result.rows?.length ?? result.data?.length ?? 0,
         overall: result.overall,
+        viewType: result.viewType,
+        grandTotals: result.grandTotals,
       });
       setQuerySummary({
         tool: 'get_mrrpv',
@@ -701,17 +757,17 @@ export default function App() {
       <div
         style={{
           background: '#18181b',
-          borderRadius: 8,
+          borderRadius: 6,
           border: '1px solid #27272a',
-          padding: '1rem',
-          marginBottom: '1rem',
-          minHeight: 200,
-          maxHeight: 400,
+          padding: '0.35rem 0.5rem',
+          marginBottom: '0.5rem',
+          minHeight: 52,
+          maxHeight: 100,
           overflowY: 'auto',
         }}
       >
         {messages.length === 0 && (
-          <p style={{ color: '#71717a', fontSize: '0.875rem' }}>
+          <p style={{ color: '#71717a', fontSize: '0.7rem', margin: 0 }}>
             Send a message to get started.
           </p>
         )}
@@ -719,15 +775,15 @@ export default function App() {
           <div
             key={i}
             style={{
-              marginBottom: '0.75rem',
-              padding: '0.5rem 0',
+              marginBottom: '0.2rem',
+              padding: '0.15rem 0',
               borderBottom: i < messages.length - 1 ? '1px solid #27272a' : 'none',
             }}
           >
-            <span style={{ color: '#71717a', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase' }}>
+            <span style={{ color: '#71717a', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase' }}>
               {m.role === 'user' ? 'You' : 'Assistant'}
             </span>
-            <p style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-wrap' }}>{m.content}</p>
+            <p style={{ margin: '0.1rem 0 0', whiteSpace: 'pre-wrap', fontSize: '0.7rem', lineHeight: 1.25 }}>{m.content}</p>
           </div>
         ))}
         {loading && (
@@ -788,6 +844,7 @@ export default function App() {
           includeAccountCount: showDealCountInGrouped,
         });
         const pivot = buildTimePivot(cols, dataRows);
+        const bridgePivot = lastResult.viewType === 'bridge' ? buildBridgePivot(lastResult.data, lastResult.grandTotals) : null;
         const maxDisplay = 100;
         const tableRows = displayData.slice(0, maxDisplay);
         const o = lastResult.overall;
@@ -795,7 +852,7 @@ export default function App() {
         return (
           <div style={{ marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '0.875rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>Result</h3>
-            {o && !pivot.usePivot && !groupedPivot.useGroupedPivot && (
+            {o && !pivot.usePivot && !groupedPivot.useGroupedPivot && !bridgePivot?.usePivot && (
               <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem', color: '#e4e4e7' }}>
                 <strong>Overall:</strong>
                 {o.fleet_mrrpv != null && ` $${Number(o.fleet_mrrpv).toFixed(2)} MRRpV`}
@@ -808,7 +865,45 @@ export default function App() {
             {cols.length >= 2 && cols.length <= 5 && !pivot.usePivot && !groupedPivot.useGroupedPivot ? (
               <SimpleBarChart data={displayData} columns={cols} excludeOverall={hasMultipleRows && hasGroupCol} />
             ) : null}
-            {groupedPivot.useGroupedPivot ? (
+            {bridgePivot?.usePivot ? (
+              <div style={{ marginBottom: '0.5rem' }}>
+                <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }} />
+                        {bridgePivot.timeColumns.map((q) => (
+                          <th key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: '4.5rem', whiteSpace: 'nowrap' }}>
+                            {q}
+                          </th>
+                        ))}
+                        <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }}>
+                          Grand Total
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bridgePivot.metricRows.map((row) => {
+                        const fmt = row.format || String;
+                        return (
+                          <tr key={row.key} style={{ borderBottom: '1px solid #27272a' }}>
+                            <td style={{ padding: '0.5rem 0.75rem', fontWeight: 500 }}>{row.label}</td>
+                            {bridgePivot.timeColumns.map((q) => (
+                              <td key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#3b82f6' }}>
+                                {fmt(row.valuesByQuarter[q])}
+                              </td>
+                            ))}
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#3b82f6', fontWeight: row.boldGrandTotal ? 600 : undefined }}>
+                              {fmt(row.grandTotal)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : groupedPivot.useGroupedPivot ? (
               <div style={{ marginBottom: '0.5rem' }}>
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem', fontSize: '0.8125rem', color: '#a1a1aa' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
@@ -1134,7 +1229,7 @@ export default function App() {
                 </table>
               </div>
             )}
-            {(lastResult.rowCount > maxDisplay || displayData.length > maxDisplay) && !pivot.usePivot && (
+            {(lastResult.rowCount > maxDisplay || displayData.length > maxDisplay) && !pivot.usePivot && !bridgePivot?.usePivot && (
               <p style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.25rem' }}>
                 Showing first {maxDisplay} of {Math.max(lastResult.rowCount ?? 0, displayData.length)} rows.
               </p>

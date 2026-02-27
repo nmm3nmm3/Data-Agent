@@ -338,4 +338,209 @@ export async function getMRRpV(params = {}) {
   return { columns, rows, data, overall };
 }
 
+/**
+ * Bridge query: one row per quarter with VG/CM ASP, attach rates, and contribution components of First Purchase MRRpV.
+ * Only supports first_purchase. Returns { columns, data, viewType: 'bridge' }.
+ */
+export async function getBridgeMRRpV(params = {}) {
+  const { timeWindow, filters = {} } = params;
+  const config = getSourceConfig('first_purchase');
+  const periods = resolveTimeWindows(timeWindow);
+  if (!periods || periods.length === 0) {
+    throw new Error('Bridge view requires timeWindow (e.g. FY26 Q2,FY26 Q3,FY26 Q4,FY27 Q1)');
+  }
+  const regionsList = Array.isArray(filters.regions) ? filters.regions.filter((g) => g != null && String(g).length <= 100) : [];
+  const excludeRegionsList = Array.isArray(filters.excludeRegions) ? filters.excludeRegions.filter((g) => g != null && String(g).length <= 100) : [];
+  const segmentsList = Array.isArray(filters.segments) ? filters.segments.filter((s) => s != null && String(s).length <= 100) : [];
+  const excludeSegmentsList = Array.isArray(filters.excludeSegments) ? filters.excludeSegments.filter((s) => s != null && String(s).length <= 100) : [];
+  const industriesList = Array.isArray(filters.industries) ? filters.industries.filter((i) => i != null && String(i).length <= 100) : [];
+  const excludeIndustriesList = Array.isArray(filters.excludeIndustries) ? filters.excludeIndustries.filter((i) => i != null && String(i).length <= 100) : [];
+  const where = [];
+  where.push(`${config.timeCol} IN (${periods.map((p) => `'${p}'`).join(', ')})`);
+  if (regionsList.length > 0) {
+    const escaped = regionsList.map((g) => `'${String(g).replace(/'/g, "''")}'`);
+    where.push(`(geo IN (${escaped.join(', ')}))`);
+  } else if (excludeRegionsList.length > 0) {
+    const escaped = excludeRegionsList.map((g) => `'${String(g).replace(/'/g, "''")}'`);
+    where.push(`(geo NOT IN (${escaped.join(', ')}))`);
+  } else if (filters.region) {
+    where.push(`(geo = '${String(filters.region).replace(/'/g, "''")}')`);
+  }
+  if (segmentsList.length > 0) {
+    const escaped = segmentsList.map((s) => `'${String(s).replace(/'/g, "''")}'`);
+    where.push(`(segment IN (${escaped.join(', ')}))`);
+  } else if (excludeSegmentsList.length > 0) {
+    const escaped = excludeSegmentsList.map((s) => `'${String(s).replace(/'/g, "''")}'`);
+    where.push(`(segment NOT IN (${escaped.join(', ')}))`);
+  } else if (filters.segment) {
+    where.push(`(segment = '${String(filters.segment).replace(/'/g, "''")}')`);
+  }
+  if (industriesList.length > 0) {
+    const escaped = industriesList.map((i) => `'${String(i).replace(/'/g, "''")}'`);
+    where.push(`(industry IN (${escaped.join(', ')}))`);
+  } else if (excludeIndustriesList.length > 0) {
+    const escaped = excludeIndustriesList.map((i) => `'${String(i).replace(/'/g, "''")}'`);
+    where.push(`(industry NOT IN (${escaped.join(', ')}))`);
+  } else if (filters.industry) {
+    where.push(`(industry = '${String(filters.industry).replace(/'/g, "''")}')`);
+  }
+  const whereClause = ` WHERE ${where.join(' AND ')}`;
+  const fullTable = `${CATALOG}.${SCHEMA}.${config.table}`;
+  const timeCol = config.timeCol;
+  const v = config.valueCol;
+  const c = config.countCol;
+  const mrrpvExpr = `ROUND(SUM(${v} * ${c}) / NULLIF(SUM(${c}), 0), 2)`;
+  const sql = `SELECT ${timeCol},
+    SUM(${c}) AS vehicle_count,
+    SUM(${config.acvCol}) AS acv,
+    ${mrrpvExpr} AS fleet_mrrpv,
+    SUM(vg_core_acv) AS vg_core_acv,
+    SUM(vg_count) AS vg_count,
+    SUM(cm_core_acv) AS cm_core_acv,
+    SUM(cm_count) AS cm_count,
+    SUM(vgcm_core_acv) AS vgcm_core_acv,
+    SUM(vgcm_addon_acv) AS vgcm_addon_acv,
+    SUM(st_acv) AS st_acv,
+    SUM(flapps_acv) AS flapps_acv,
+    SUM(cc_acv) AS cc_acv,
+    SUM(other_acv) AS other_acv,
+    SUM(subsidy_acv) AS subsidy_acv
+  FROM ${fullTable}${whereClause}
+  GROUP BY ${timeCol}
+  ORDER BY ${timeCol}
+  LIMIT 100`;
+
+  const { columns: rawColumns, rows: rawRows } = await runSql(sql);
+  const rawColNames = rawColumns?.length > 0 ? rawColumns.map((col) => col.name) : ['close_quarter', 'vehicle_count', 'acv', 'fleet_mrrpv', 'vg_core_acv', 'vg_count', 'cm_core_acv', 'cm_count', 'vgcm_core_acv', 'vgcm_addon_acv', 'st_acv', 'flapps_acv', 'cc_acv', 'other_acv', 'subsidy_acv'];
+  const rawColCount = rawColNames.length;
+  let rows = rawRows;
+  if (rawRows?.length > 0 && Array.isArray(rawRows[0])) {
+    rows = rawRows;
+  } else if (rawRows?.length > 0 && !Array.isArray(rawRows[0]) && rawRows.length % rawColCount === 0) {
+    rows = [];
+    for (let i = 0; i < rawRows.length; i += rawColCount) {
+      rows.push(rawRows.slice(i, i + rawColCount));
+    }
+  }
+  const idx = (name) => rawColNames.indexOf(name);
+  const totals = {
+    vehicle_count: 0,
+    acv: 0,
+    mrrpvWeighted: 0,
+    vg_core_acv: 0,
+    vg_count: 0,
+    cm_core_acv: 0,
+    cm_count: 0,
+    vgcm_core_acv: 0,
+    vgcm_addon_acv: 0,
+    st_acv: 0,
+    flapps_acv: 0,
+    cc_acv: 0,
+    other_acv: 0,
+    subsidy_acv: 0,
+  };
+  const data = (rows || []).map((row) => {
+    const get = (name) => {
+      const i = idx(name);
+      if (i < 0) return null;
+      const val = Array.isArray(row) ? row[i] : row[name];
+      return val != null && val !== '' ? Number(val) : null;
+    };
+    const close_quarter = Array.isArray(row) ? row[idx('close_quarter')] : row?.close_quarter;
+    const vehicle_count = get('vehicle_count');
+    const acv = get('acv');
+    const fleet_mrrpv = get('fleet_mrrpv');
+    const vg_core_acv = get('vg_core_acv');
+    const vg_count = get('vg_count');
+    const cm_core_acv = get('cm_core_acv');
+    const cm_count = get('cm_count');
+    const vgcm_core_acv = get('vgcm_core_acv');
+    const vgcm_addon_acv = get('vgcm_addon_acv');
+    const st_acv = get('st_acv');
+    const flapps_acv = get('flapps_acv');
+    const cc_acv = get('cc_acv');
+    const other_acv = get('other_acv');
+    const subsidy_acv = get('subsidy_acv');
+    totals.vehicle_count += vehicle_count != null ? Number(vehicle_count) : 0;
+    totals.acv += acv != null ? Number(acv) : 0;
+    totals.mrrpvWeighted += (fleet_mrrpv != null && vehicle_count != null) ? Number(fleet_mrrpv) * Number(vehicle_count) : 0;
+    totals.vg_core_acv += vg_core_acv != null ? Number(vg_core_acv) : 0;
+    totals.vg_count += vg_count != null ? Number(vg_count) : 0;
+    totals.cm_core_acv += cm_core_acv != null ? Number(cm_core_acv) : 0;
+    totals.cm_count += cm_count != null ? Number(cm_count) : 0;
+    totals.vgcm_core_acv += vgcm_core_acv != null ? Number(vgcm_core_acv) : 0;
+    totals.vgcm_addon_acv += vgcm_addon_acv != null ? Number(vgcm_addon_acv) : 0;
+    totals.st_acv += st_acv != null ? Number(st_acv) : 0;
+    totals.flapps_acv += flapps_acv != null ? Number(flapps_acv) : 0;
+    totals.cc_acv += cc_acv != null ? Number(cc_acv) : 0;
+    totals.other_acv += other_acv != null ? Number(other_acv) : 0;
+    totals.subsidy_acv += subsidy_acv != null ? Number(subsidy_acv) : 0;
+    const vc = vehicle_count && Number(vehicle_count) > 0 ? Number(vehicle_count) : null;
+    const monthlyPerVehicle = (acvVal) => (acvVal != null && vc ? (Number(acvVal) / 12) / vc : null);
+    const vg_asp = vg_count > 0 && vg_core_acv != null ? Math.round((vg_core_acv / vg_count / 12) * 100) / 100 : null;
+    const cm_asp = cm_count > 0 && cm_core_acv != null ? Math.round((cm_core_acv / cm_count / 12) * 100) / 100 : null;
+    const vg_attach_pct = vc > 0 && vg_count != null ? Math.round((100 * vg_count) / vc * 10) / 10 : null;
+    const cm_attach_pct = vc > 0 && cm_count != null ? Math.round((100 * cm_count) / vc * 10) / 10 : null;
+    return {
+      close_quarter,
+      vehicle_count: vehicle_count != null ? Math.round(vehicle_count) : null,
+      acv,
+      fleet_mrrpv,
+      vg_asp,
+      cm_asp,
+      vg_attach_pct,
+      cm_attach_pct,
+      vg_core_contribution: monthlyPerVehicle(vg_core_acv) != null ? Math.round(monthlyPerVehicle(vg_core_acv) * 100) / 100 : null,
+      cm_core_contribution: monthlyPerVehicle(cm_core_acv) != null ? Math.round(monthlyPerVehicle(cm_core_acv) * 100) / 100 : null,
+      vgcm_core_contribution: monthlyPerVehicle(vgcm_core_acv) != null ? Math.round(monthlyPerVehicle(vgcm_core_acv) * 100) / 100 : null,
+      vgcm_addon_contribution: monthlyPerVehicle(vgcm_addon_acv) != null ? Math.round(monthlyPerVehicle(vgcm_addon_acv) * 100) / 100 : null,
+      st_contribution: monthlyPerVehicle(st_acv) != null ? Math.round(monthlyPerVehicle(st_acv) * 100) / 100 : null,
+      flapps_contribution: monthlyPerVehicle(flapps_acv) != null ? Math.round(monthlyPerVehicle(flapps_acv) * 100) / 100 : null,
+      cc_contribution: monthlyPerVehicle(cc_acv) != null ? Math.round(monthlyPerVehicle(cc_acv) * 100) / 100 : null,
+      other_contribution: monthlyPerVehicle(other_acv) != null ? Math.round(monthlyPerVehicle(other_acv) * 100) / 100 : null,
+      subsidy_contribution: monthlyPerVehicle(subsidy_acv) != null ? Math.round(monthlyPerVehicle(subsidy_acv) * 100) / 100 : null,
+    };
+  });
+
+  const vcTotal = totals.vehicle_count > 0 ? totals.vehicle_count : null;
+  const grandTotals = {
+    vehicle_count: vcTotal != null ? Math.round(vcTotal) : null,
+    acv: totals.acv > 0 ? totals.acv : null,
+    fleet_mrrpv: vcTotal > 0 ? Math.round((totals.mrrpvWeighted / vcTotal) * 100) / 100 : null,
+    vg_asp: totals.vg_count > 0 ? Math.round((totals.vg_core_acv / totals.vg_count / 12) * 100) / 100 : null,
+    cm_asp: totals.cm_count > 0 ? Math.round((totals.cm_core_acv / totals.cm_count / 12) * 100) / 100 : null,
+    vg_attach_pct: vcTotal > 0 ? Math.round((100 * totals.vg_count) / vcTotal * 10) / 10 : null,
+    cm_attach_pct: vcTotal > 0 ? Math.round((100 * totals.cm_count) / vcTotal * 10) / 10 : null,
+    vg_core_contribution: vcTotal > 0 ? Math.round((totals.vg_core_acv / 12 / vcTotal) * 100) / 100 : null,
+    cm_core_contribution: vcTotal > 0 ? Math.round((totals.cm_core_acv / 12 / vcTotal) * 100) / 100 : null,
+    vgcm_core_contribution: vcTotal > 0 ? Math.round((totals.vgcm_core_acv / 12 / vcTotal) * 100) / 100 : null,
+    vgcm_addon_contribution: vcTotal > 0 ? Math.round((totals.vgcm_addon_acv / 12 / vcTotal) * 100) / 100 : null,
+    st_contribution: vcTotal > 0 ? Math.round((totals.st_acv / 12 / vcTotal) * 100) / 100 : null,
+    flapps_contribution: vcTotal > 0 ? Math.round((totals.flapps_acv / 12 / vcTotal) * 100) / 100 : null,
+    cc_contribution: vcTotal > 0 ? Math.round((totals.cc_acv / 12 / vcTotal) * 100) / 100 : null,
+    other_contribution: vcTotal > 0 ? Math.round((totals.other_acv / 12 / vcTotal) * 100) / 100 : null,
+    subsidy_contribution: vcTotal > 0 ? Math.round((totals.subsidy_acv / 12 / vcTotal) * 100) / 100 : null,
+  };
+  const columns = [
+    { name: 'close_quarter' },
+    { name: 'vehicle_count' },
+    { name: 'acv' },
+    { name: 'fleet_mrrpv' },
+    { name: 'vg_asp' },
+    { name: 'cm_asp' },
+    { name: 'vg_attach_pct' },
+    { name: 'cm_attach_pct' },
+    { name: 'vg_core_contribution' },
+    { name: 'cm_core_contribution' },
+    { name: 'vgcm_core_contribution' },
+    { name: 'vgcm_addon_contribution' },
+    { name: 'st_contribution' },
+    { name: 'flapps_contribution' },
+    { name: 'cc_contribution' },
+    { name: 'other_contribution' },
+    { name: 'subsidy_contribution' },
+  ];
+  return { columns, rows: data, data, viewType: 'bridge', grandTotals };
+}
+
 export { DATA_SOURCES, SOURCE_CONFIG, getSourceConfig };

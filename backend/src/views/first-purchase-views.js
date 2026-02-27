@@ -53,6 +53,19 @@ const PRESETS = [
     },
     overridable: ['timeWindow', 'groupBy', 'includeProduct', 'region', 'segment', 'includeAccountCount', 'includeAvgDealSize'],
   },
+  {
+    id: 'first-purchase-bridge',
+    label: 'MRRpV Bridge',
+    description: 'Bridge view: First Purchase vehicles, ACV, MRRpV, VG/CM ASP and attach rates, and contribution components by quarter.',
+    defaultParams: {
+      dataSource: 'first_purchase',
+      timeWindow: DEFAULT_FOUR_QUARTERS,
+      groupBy: null,
+      filters: {},
+      viewType: 'bridge',
+    },
+    overridable: ['timeWindow', 'filters'],
+  },
 ];
 
 /**
