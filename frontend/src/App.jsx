@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const API = '/api';
 
@@ -25,6 +25,233 @@ function formatCell(colName, value) {
     return Number.isFinite(n) ? n.toLocaleString() : String(value);
   }
   return String(value);
+}
+
+/** Format ACV for pivot table: always $X.XXXM (e.g. $0.800M, $1.500M) */
+function formatAcvPivot(value) {
+  if (value == null || !Number.isFinite(Number(value))) return '—';
+  const n = Number(value);
+  return `$${(n / 1e6).toFixed(3)}M`;
+}
+
+const TIME_METRIC_ROWS = [
+  { key: 'account_count', label: 'First Purchase Accounts', format: (v) => (v != null && Number.isFinite(Number(v)) ? Number(v).toLocaleString() : '—') },
+  { key: 'vehicle_count', label: 'First Purchase Vehicles', format: (v) => (v != null && Number.isFinite(Number(v)) ? Number(v).toLocaleString() : '—') },
+  { key: 'acv', label: 'First Purchase ACV', format: formatAcvPivot },
+  { key: 'fleet_mrrpv', label: 'First Purchase MRRpV', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—') },
+  { key: 'avg_deal_size', label: 'Avg deal size', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—') },
+];
+
+/**
+ * Build pivot view when data has close_quarter and one row per period (no group by dimension).
+ * Returns { usePivot: boolean, timeColumns: string[], metricRows: { label, key, valuesByQuarter: {}, grandTotal } } or { usePivot: false }.
+ */
+function buildTimePivot(cols, dataRows) {
+  const timeCol = cols.find((c) => c.name === 'close_quarter');
+  const hasGroup = cols.some((c) => ['industry', 'segment', 'geo'].includes(c.name));
+  if (!timeCol || hasGroup || !dataRows?.length) return { usePivot: false };
+
+  const quarters = [...new Set(dataRows.map((r) => r.close_quarter).filter(Boolean))].sort();
+  if (quarters.length === 0) return { usePivot: false };
+
+  const valueKeys = TIME_METRIC_ROWS.filter((m) => cols.some((c) => c.name === m.key)).map((m) => m.key);
+  if (valueKeys.length === 0) return { usePivot: false };
+
+  const byQuarter = {};
+  quarters.forEach((q) => {
+    byQuarter[q] = dataRows.find((r) => r.close_quarter === q) || {};
+  });
+
+  const metricRows = valueKeys.map((key) => {
+    const spec = TIME_METRIC_ROWS.find((m) => m.key === key);
+    const label = spec?.label || key;
+    const format = spec?.format || String;
+    const valuesByQuarter = {};
+    let grandTotalRaw = null;
+    quarters.forEach((q) => {
+      const v = byQuarter[q][key];
+      valuesByQuarter[q] = v;
+      if (key === 'fleet_mrrpv') {
+        // weighted avg later
+      } else if (key === 'avg_deal_size') {
+        // computed from ACV / account_count at end
+      } else {
+        const n = Number(v);
+        if (Number.isFinite(n)) grandTotalRaw = (grandTotalRaw ?? 0) + n;
+      }
+    });
+
+    if (key === 'fleet_mrrpv') {
+      const totalVehicles = quarters.reduce((s, q) => s + (Number(byQuarter[q].vehicle_count) || 0), 0);
+      const sumWeighted = quarters.reduce((s, q) => s + (Number(byQuarter[q].fleet_mrrpv) || 0) * (Number(byQuarter[q].vehicle_count) || 0), 0);
+      grandTotalRaw = totalVehicles > 0 ? Math.round((sumWeighted / totalVehicles) * 100) / 100 : null;
+    } else if (key === 'avg_deal_size') {
+      const totalAcv = quarters.reduce((s, q) => s + (Number(byQuarter[q].acv) || 0), 0);
+      const totalAccounts = quarters.reduce((s, q) => s + (Number(byQuarter[q].account_count) || 0), 0);
+      grandTotalRaw = totalAccounts > 0 ? Math.round((totalAcv / totalAccounts) * 100) / 100 : null;
+    }
+
+    return { label, key, valuesByQuarter, grandTotal: grandTotalRaw };
+  });
+
+  return { usePivot: true, timeColumns: quarters, metricRows };
+}
+
+/** Map raw geo to super-geo: NA (US, CA, MX, US-SLED, US - SLED) or EMEA (UK, DACH, FR, BNL). Others pass through. */
+const GEO_TO_SUPER = {
+  US: 'NA', CA: 'NA', MX: 'NA', 'US-SLED': 'NA', 'US - SLED': 'NA',
+  UK: 'EMEA', DACH: 'EMEA', FR: 'EMEA', BNL: 'EMEA',
+};
+function geoToSuperGeo(geo) {
+  if (geo == null) return geo;
+  const g = String(geo).trim().toUpperCase();
+  return GEO_TO_SUPER[g] ?? GEO_TO_SUPER[geo] ?? geo;
+}
+
+/** Geo values that map to US-SLED (data may use either form). */
+function isUSSLEDGeo(geo) {
+  if (geo == null) return false;
+  const g = String(geo).trim();
+  return g === 'US-SLED' || g === 'US - SLED';
+}
+
+/** Canonical order for segment rows within each geo (NA/EMEA): regular segments first, then US-SLED breakouts. */
+const SEGMENT_ORDER = ['CML', 'MM', 'ENT - COR', 'ENT - SEL', 'ENT - STR'];
+/** US-SLED breakout rows in display order (after all regular segments). */
+const GEO_SEGMENT_BREAKOUTS_ORDER = [
+  { segment: 'MM', label: 'US-SLED - MM' },
+  { segment: 'ENT - SEL', label: 'US-SLED - ENT - SEL' },
+];
+
+/** Metric column groups for grouped+time table: MRRpV, ACV, Vehicles, Accounts — each with quarter sub-columns only (totals in rows) */
+const GROUPED_METRIC_SPECS = [
+  { key: 'fleet_mrrpv', label: 'First Purchase MRRpV', format: (v) => (v != null && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}` : '—') },
+  { key: 'acv', label: 'First Purchase ACV', format: formatAcvPivot },
+  { key: 'vehicle_count', label: 'First Purchase Vehicles', format: (v) => (v != null && Number.isFinite(Number(v)) ? Number(v).toLocaleString() : '—') },
+  { key: 'account_count', label: 'First Purchase Accounts', format: (v) => (v != null && Number.isFinite(Number(v)) ? Number(v).toLocaleString() : '—') },
+];
+
+/** For geo-segment and industry presets, only MRRpV and ACV are shown by default; vehicles and deal count can be toggled on. */
+const DEFAULT_GROUPED_VISIBLE_KEYS = ['fleet_mrrpv', 'acv'];
+
+/**
+ * Build grouped + time pivot when data has (geo+segment OR industry) and close_quarter.
+ * options: { includeVehicleCount?: boolean, includeAccountCount?: boolean } — when false/omitted, those column groups are hidden (user can ask to see them).
+ */
+function buildGroupedTimePivot(cols, dataRows, options = {}) {
+  const timeCol = cols.find((c) => c.name === 'close_quarter');
+  const hasGeo = cols.some((c) => c.name === 'geo');
+  const hasSegment = cols.some((c) => c.name === 'segment');
+  const hasIndustry = cols.some((c) => c.name === 'industry');
+  const isGeoSegment = hasGeo && hasSegment;
+  const isIndustry = hasIndustry && !isGeoSegment;
+  if (!timeCol || (!isGeoSegment && !isIndustry) || !dataRows?.length) return { useGroupedPivot: false };
+
+  const quarters = [...new Set(dataRows.map((r) => r.close_quarter).filter(Boolean))].sort();
+  if (quarters.length === 0) return { useGroupedPivot: false };
+
+  const visibleKeys = [...DEFAULT_GROUPED_VISIBLE_KEYS];
+  if (options.includeVehicleCount) visibleKeys.push('vehicle_count');
+  if (options.includeAccountCount) visibleKeys.push('account_count');
+  const metricSpecs = GROUPED_METRIC_SPECS.filter(
+    (m) => cols.some((c) => c.name === m.key) && visibleKeys.includes(m.key)
+  );
+
+  // For geo_segment, enrich rows with super_geo (NA/EMEA) and use that for grouping
+  const rowsForGrouping = isGeoSegment
+    ? dataRows.map((r) => ({ ...r, super_geo: geoToSuperGeo(r.geo) }))
+    : dataRows;
+
+  function aggQuarter(rows, metric) {
+    if (metric === 'fleet_mrrpv') {
+      const totalV = rows.reduce((s, r) => s + (Number(r.vehicle_count) || 0), 0);
+      const sumW = rows.reduce((s, r) => s + (Number(r.fleet_mrrpv) || 0) * (Number(r.vehicle_count) || 0), 0);
+      return totalV > 0 ? Math.round((sumW / totalV) * 100) / 100 : null;
+    }
+    if (metric === 'acv' || metric === 'vehicle_count' || metric === 'account_count') {
+      return rows.reduce((s, r) => s + (Number(r[metric]) || 0), 0);
+    }
+    return null;
+  }
+
+  let rowGroups = [];
+  let geoBlocks = null; // for geo-segment: [{ geo: 'NA', rows: [rowGroup,...] }, ...]; NA/EMEA are merged cells, not own rows
+  if (isGeoSegment) {
+    const superGeos = [...new Set(rowsForGrouping.map((r) => r.super_geo).filter(Boolean))].sort();
+    geoBlocks = superGeos.map((superGeo) => {
+      const segRows = rowsForGrouping.filter((r) => r.super_geo === superGeo);
+      const segmentsInData = new Set(segRows.map((r) => r.segment).filter(Boolean));
+      const blockRows = [];
+      SEGMENT_ORDER.forEach((segment) => {
+        if (segmentsInData.has(segment)) {
+          blockRows.push({ type: 'segment', super_geo: superGeo, segment });
+        }
+      });
+      GEO_SEGMENT_BREAKOUTS_ORDER.forEach((breakout) => {
+        if (segRows.some((r) => isUSSLEDGeo(r.geo) && r.segment === breakout.segment)) {
+          blockRows.push({ type: 'geo_segment', super_geo: superGeo, geo: 'US-SLED', segment: breakout.segment, label: breakout.label });
+        }
+      });
+      blockRows.push({ type: 'total', label: 'Total', super_geo: superGeo });
+      return { geo: superGeo, rows: blockRows };
+    });
+    rowGroups = geoBlocks.flatMap((b) => b.rows);
+    rowGroups.push({ type: 'grand', label: 'Grand Total' });
+  } else {
+    const industries = [...new Set(dataRows.map((r) => r.industry).filter(Boolean))].sort();
+    industries.forEach((industry) => {
+      rowGroups.push({ type: 'industry', industry });
+    });
+    rowGroups.push({ type: 'grand', label: 'Grand Total' });
+  }
+
+  function getValue(rowGroup, metric, quarter) {
+    let rows;
+    if (rowGroup.type === 'segment') {
+      rows = rowsForGrouping.filter(
+        (r) =>
+          r.super_geo === rowGroup.super_geo &&
+          r.segment === rowGroup.segment &&
+          r.close_quarter === quarter &&
+          !(isUSSLEDGeo(r.geo) && (rowGroup.segment === 'MM' || rowGroup.segment === 'ENT - SEL'))
+      );
+    } else if (rowGroup.type === 'geo_segment') {
+      rows = rowsForGrouping.filter(
+        (r) =>
+          r.super_geo === rowGroup.super_geo &&
+          isUSSLEDGeo(r.geo) &&
+          r.segment === rowGroup.segment &&
+          r.close_quarter === quarter
+      );
+    } else if (rowGroup.type === 'total') {
+      rows = rowsForGrouping.filter((r) => r.super_geo === rowGroup.super_geo && r.close_quarter === quarter);
+    } else if (rowGroup.type === 'industry') {
+      rows = dataRows.filter((r) => r.industry === rowGroup.industry && r.close_quarter === quarter);
+    } else if (rowGroup.type === 'grand') {
+      rows = rowsForGrouping.filter((r) => r.close_quarter === quarter);
+    } else {
+      return null; // geo header row has no values
+    }
+    if (rows.length === 0) return null;
+    return aggQuarter(rows, metric);
+  }
+
+  /** Weighted average MRRpV across all quarters for this row (sum(mrrpv*vehicles)/sum(vehicles)). */
+  function getWeightedAvgMrrpv(rowGroup) {
+    let sumWeighted = 0;
+    let sumVehicles = 0;
+    quarters.forEach((q) => {
+      const mrrpv = getValue(rowGroup, 'fleet_mrrpv', q);
+      const vehicles = getValue(rowGroup, 'vehicle_count', q);
+      const v = Number(vehicles) || 0;
+      const m = Number(mrrpv) || 0;
+      sumWeighted += m * v;
+      sumVehicles += v;
+    });
+    return sumVehicles > 0 ? Math.round((sumWeighted / sumVehicles) * 100) / 100 : null;
+  }
+
+  return { useGroupedPivot: true, timeColumns: quarters, metricSpecs, rowGroups, geoBlocks, getValue, getWeightedAvgMrrpv, isGeoSegment };
 }
 
 function SimpleBarChart({ data, columns, excludeOverall }) {
@@ -227,9 +454,16 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([]);
   const [lastResult, setLastResult] = useState(null);
+  const [lastToolError, setLastToolError] = useState(null);
   const [querySummary, setQuerySummary] = useState(null);
   const [conversationId, setConversationId] = useState(null);
   const [dataSource, setDataSource] = useState('first_purchase');
+  const [views, setViews] = useState([]);
+  const [viewsLoadError, setViewsLoadError] = useState(null);
+  const [selectedViewId, setSelectedViewId] = useState('');
+  const [viewLoading, setViewLoading] = useState(false);
+  const [showVehiclesInGrouped, setShowVehiclesInGrouped] = useState(false);
+  const [showDealCountInGrouped, setShowDealCountInGrouped] = useState(false);
   const bottomRef = useRef(null);
   const isAdmin = typeof window !== 'undefined' && window.location.hash === '#admin';
 
@@ -240,9 +474,83 @@ export default function App() {
       .catch(() => setHealth({ ok: false }));
   }, []);
 
+  function loadViews() {
+    setViewsLoadError(null);
+    fetch(`${API}/views`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((list) => {
+        setViews(Array.isArray(list) ? list : []);
+        setViewsLoadError(null);
+      })
+      .catch((err) => {
+        setViews([]);
+        const msg = err.message || 'Could not load preset views';
+        setViewsLoadError(msg === 'Failed to fetch' ? 'Backend not reachable—run npm run dev from project root' : msg);
+      });
+  }
+
+  useEffect(() => {
+    loadViews();
+  }, []);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  async function runPresetView(viewId) {
+    const view = views.find((v) => v.id === viewId);
+    if (!view) return;
+    setViewLoading(true);
+    setLastToolError(null);
+    try {
+      const p = view.defaultParams || {};
+      const body = {
+        dataSource: p.dataSource ?? dataSource,
+        timeWindow: p.timeWindow,
+        groupBy: p.groupBy,
+        filters: p.filters || {},
+        includeProduct: p.includeProduct,
+        includeAccountCount: p.includeAccountCount ?? true,
+        includeAvgDealSize: p.includeAvgDealSize ?? false,
+      };
+      const res = await fetch(`${API}/query/mrrpv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLastResult(null);
+        setLastToolError(result.error || `Request failed (${res.status})`);
+        setQuerySummary(null);
+        return;
+      }
+      setLastResult({
+        data: result.data,
+        columns: result.columns,
+        rowCount: result.rows?.length ?? result.data?.length ?? 0,
+        overall: result.overall,
+      });
+      setQuerySummary({
+        tool: 'get_mrrpv',
+        dataSource: body.dataSource,
+        time_window: body.timeWindow,
+        group_by: body.groupBy,
+        include_product: body.includeProduct,
+        region: body.filters?.region,
+        segment: body.filters?.segment,
+      });
+    } catch (err) {
+      setLastResult(null);
+      setLastToolError(err.message || 'Request failed');
+      setQuerySummary(null);
+    } finally {
+      setViewLoading(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -252,7 +560,27 @@ export default function App() {
     setMessages((m) => [...m, { role: 'user', content: userMessage }]);
     setLoading(true);
     setLastResult(null);
+    setLastToolError(null);
     try {
+      const view = selectedViewId ? views.find((v) => v.id === selectedViewId) : null;
+      const currentView =
+        view || querySummary
+          ? {
+              presetId: selectedViewId || undefined,
+              label: view?.label || (querySummary?.group_by ? `MRRpV by ${querySummary.group_by}` : 'MRRpV'),
+              time_window: querySummary?.time_window,
+              group_by: querySummary?.group_by,
+              region: querySummary?.region,
+              segment: querySummary?.segment,
+              regions: querySummary?.regions,
+              exclude_regions: querySummary?.exclude_regions,
+              segments: querySummary?.segments,
+              exclude_segments: querySummary?.exclude_segments,
+              industries: querySummary?.industries,
+              exclude_industries: querySummary?.exclude_industries,
+              include_acv: querySummary?.include_acv,
+            }
+          : undefined;
       const res = await fetch(`${API}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -260,6 +588,7 @@ export default function App() {
           message: userMessage,
           conversationId: conversationId || undefined,
           dataSource: dataSource || 'fleet',
+          currentView: currentView || undefined,
         }),
       });
       let data;
@@ -272,6 +601,7 @@ export default function App() {
       setConversationId(data.conversationId);
       setMessages((m) => [...m, { role: 'assistant', content: data.reply }]);
       if (data.lastResult) setLastResult(data.lastResult);
+      setLastToolError(data.lastToolError ?? null);
       setQuerySummary(data.querySummary || null);
     } catch (err) {
       const msg = err.message || 'Request failed';
@@ -284,7 +614,7 @@ export default function App() {
   if (isAdmin) return <AdminPage />;
 
   return (
-    <div style={{ padding: '2rem', maxWidth: 800, margin: '0 auto', minHeight: '100vh' }}>
+    <div style={{ padding: '2rem', paddingBottom: '60vh', maxWidth: 800, margin: '0 auto', minHeight: '100vh' }}>
       <h1 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Data-Agent</h1>
       <p style={{ color: '#a1a1aa', marginBottom: '0.5rem' }}>
         <a href="#admin" style={{ color: '#71717a', fontSize: '0.875rem' }}>Admin</a>
@@ -297,6 +627,51 @@ export default function App() {
           Backend: {health.ok ? 'Connected' : 'Disconnected'}
         </p>
       )}
+
+      <div style={{ marginBottom: '1rem' }}>
+        <span style={{ fontSize: '0.875rem', color: '#a1a1aa', marginRight: '0.75rem' }}>Views:</span>
+        <select
+          value={selectedViewId}
+          onChange={(e) => {
+            const id = e.target.value;
+            setSelectedViewId(id);
+            if (id) runPresetView(id);
+          }}
+          disabled={viewLoading}
+          style={{
+            padding: '0.5rem 0.75rem',
+            fontSize: '0.875rem',
+            background: '#18181b',
+            border: '1px solid #27272a',
+            borderRadius: 6,
+            color: '#e4e4e7',
+            minWidth: 260,
+            marginRight: '0.5rem',
+          }}
+        >
+          <option value="">Select a preset view…</option>
+          {views.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.label}
+            </option>
+          ))}
+        </select>
+        {viewLoading && <span style={{ fontSize: '0.875rem', color: '#71717a' }}>Loading…</span>}
+        {viewsLoadError && (
+          <span style={{ fontSize: '0.75rem', color: '#f59e0b', marginLeft: '0.5rem' }}>
+            Preset views didn’t load
+            {viewsLoadError !== 'Could not load preset views' && ` (${viewsLoadError})`}
+            {' · '}
+            <button
+              type="button"
+              onClick={loadViews}
+              style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', padding: 0 }}
+            >
+              Retry
+            </button>
+          </span>
+        )}
+      </div>
 
       <div style={{ marginBottom: '1rem' }}>
         <span style={{ fontSize: '0.875rem', color: '#a1a1aa', marginRight: '0.75rem' }}>Data source:</span>
@@ -369,8 +744,23 @@ export default function App() {
           {querySummary.group_by ? `, by ${querySummary.group_by}` : ''}
           {querySummary.include_product ? `, included product: ${querySummary.include_product}` : ''}
           {querySummary.region ? `, region: ${querySummary.region}` : ''}
+          {querySummary.regions?.length ? `, regions: ${querySummary.regions.join(', ')}` : ''}
+          {querySummary.exclude_regions?.length ? `, exclude regions: ${querySummary.exclude_regions.join(', ')}` : ''}
           {querySummary.segment ? `, segment: ${querySummary.segment}` : ''}
+          {querySummary.segments?.length ? `, segments: ${querySummary.segments.join(', ')}` : ''}
+          {querySummary.exclude_segments?.length ? `, exclude segments: ${querySummary.exclude_segments.join(', ')}` : ''}
+          {querySummary.industries?.length ? `, industries: ${querySummary.industries.join(', ')}` : ''}
+          {querySummary.exclude_industries?.length ? `, exclude industries: ${querySummary.exclude_industries.join(', ')}` : ''}
+          {querySummary.include_acv === false ? ', ACV columns hidden' : ''}
         </p>
+      )}
+      {querySummary && lastToolError && (
+        <p style={{ fontSize: '0.875rem', color: '#f59e0b', marginBottom: '0.5rem', padding: '0.5rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 6 }}>
+          Query failed: {lastToolError}
+        </p>
+      )}
+      {lastResult && lastResult.data?.length === 0 && !lastToolError && (
+        <p style={{ fontSize: '0.875rem', color: '#71717a', marginBottom: '0.5rem' }}>No rows for that period or filters.</p>
       )}
       {lastResult && lastResult.data?.length > 0 && (() => {
         const cols = lastResult.columns || [];
@@ -393,13 +783,19 @@ export default function App() {
           if (cols.some((c) => c.name === 'close_quarter')) overallRow.close_quarter = dataRows[0]?.close_quarter ?? '';
           displayData = [...dataRows, overallRow];
         }
+        const groupedPivot = buildGroupedTimePivot(cols, dataRows, {
+          includeVehicleCount: showVehiclesInGrouped,
+          includeAccountCount: showDealCountInGrouped,
+        });
+        const pivot = buildTimePivot(cols, dataRows);
         const maxDisplay = 100;
         const tableRows = displayData.slice(0, maxDisplay);
         const o = lastResult.overall;
+        const specFor = (key) => TIME_METRIC_ROWS.find((m) => m.key === key);
         return (
           <div style={{ marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '0.875rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>Result</h3>
-            {o && (
+            {o && !pivot.usePivot && !groupedPivot.useGroupedPivot && (
               <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem', color: '#e4e4e7' }}>
                 <strong>Overall:</strong>
                 {o.fleet_mrrpv != null && ` $${Number(o.fleet_mrrpv).toFixed(2)} MRRpV`}
@@ -409,48 +805,336 @@ export default function App() {
                 {o.avg_deal_size != null && ` · $${Number(o.avg_deal_size).toFixed(2)} avg deal size`}
               </p>
             )}
-            {cols.length >= 2 && cols.length <= 5 ? (
+            {cols.length >= 2 && cols.length <= 5 && !pivot.usePivot && !groupedPivot.useGroupedPivot ? (
               <SimpleBarChart data={displayData} columns={cols} excludeOverall={hasMultipleRows && hasGroupCol} />
             ) : null}
-            <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                <thead>
-                  <tr>
-                    {cols.map((col) => (
-                      <th
-                        key={col.name}
-                        style={{
-                          textAlign: 'left',
-                          padding: '0.5rem 0.75rem',
-                          background: '#27272a',
-                          borderBottom: '1px solid #3f3f46',
-                        }}
-                      >
-                        {col.name}
+            {groupedPivot.useGroupedPivot ? (
+              <div style={{ marginBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem', fontSize: '0.8125rem', color: '#a1a1aa' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={showVehiclesInGrouped}
+                      onChange={(e) => setShowVehiclesInGrouped(e.target.checked)}
+                    />
+                    Show Vehicles
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={showDealCountInGrouped}
+                      onChange={(e) => setShowDealCountInGrouped(e.target.checked)}
+                    />
+                    Show Deal count
+                  </label>
+                </div>
+                <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr>
+                      {groupedPivot.isGeoSegment && (
+                        <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }}>Geo</th>
+                      )}
+                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: groupedPivot.isGeoSegment ? '8.5rem' : undefined }}>
+                        {groupedPivot.isGeoSegment ? 'Segment' : 'Industry'}
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row, i) => (
-                    <tr key={i} style={row[cols[0]?.name] === 'Overall' ? { fontWeight: 600, background: 'rgba(59, 130, 246, 0.08)' } : undefined}>
-                      {cols.map((col) => (
-                        <td
-                          key={col.name}
+                      {groupedPivot.metricSpecs.map((spec, specIdx) => (
+                        <th
+                          key={spec.key}
+                          colSpan={groupedPivot.timeColumns.length}
                           style={{
+                            textAlign: 'center',
                             padding: '0.5rem 0.75rem',
-                            borderBottom: '1px solid #27272a',
+                            background: '#27272a',
+                            borderBottom: '1px solid #3f3f46',
+                            borderRight: '2px solid #3f3f46',
                           }}
                         >
-                          {formatCell(col.name, row[col.name])}
-                        </td>
+                          {spec.label}
+                        </th>
+                      ))}
+                      <th style={{ textAlign: 'center', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }}>
+                        Avg MRRpV
+                      </th>
+                    </tr>
+                    <tr>
+                      {groupedPivot.isGeoSegment && <th style={{ padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }} />}
+                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: groupedPivot.isGeoSegment ? '8.5rem' : undefined }} />
+                      {groupedPivot.metricSpecs.map((spec) => (
+                        <React.Fragment key={spec.key}>
+                          {groupedPivot.timeColumns.map((q, qi) => (
+                            <th
+                              key={q}
+                              style={{
+                                textAlign: 'right',
+                                padding: '0.5rem 0.75rem',
+                                background: '#27272a',
+                                borderBottom: '1px solid #3f3f46',
+                                borderRight: qi === groupedPivot.timeColumns.length - 1 ? '2px solid #3f3f46' : undefined,
+                                minWidth: '4.5rem',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {q}
+                            </th>
+                          ))}
+                        </React.Fragment>
+                      ))}
+                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupedPivot.isGeoSegment && groupedPivot.geoBlocks ? (
+                      (() => {
+                        const borderThick = '2px solid #3f3f46';
+                        const borderThin = '1px solid #27272a';
+                        const totalBg = 'rgba(59, 130, 246, 0.08)';
+                        const bodyRows = [];
+                        groupedPivot.geoBlocks.forEach((block, blockIdx) => {
+                          block.rows.forEach((rowGroup, rowIdx) => {
+                            const segmentLabel = rowGroup.type === 'segment' ? rowGroup.segment : rowGroup.type === 'geo_segment' ? rowGroup.label : 'Total';
+                            const isTotal = rowGroup.type === 'total';
+                            const isFirstInBlock = rowIdx === 0;
+                            const borderBefore = isFirstInBlock && blockIdx > 0 ? borderThick : undefined;
+                            const borderAfter = isTotal ? borderThick : borderThin;
+                            bodyRows.push({
+                              rowGroup,
+                              segmentLabel,
+                              blockGeo: block.geo,
+                              isFirstInBlock,
+                              blockRowCount: block.rows.length,
+                              isGrandTotal: false,
+                              borderBefore,
+                              borderAfter,
+                              isTotal,
+                            });
+                          });
+                        });
+                        bodyRows.push({
+                          rowGroup: groupedPivot.rowGroups[groupedPivot.rowGroups.length - 1],
+                          segmentLabel: 'Grand Total',
+                          blockGeo: null,
+                          isFirstInBlock: false,
+                          blockRowCount: 1,
+                          isGrandTotal: true,
+                          borderBefore: borderThick,
+                          borderAfter: borderThick,
+                          isTotal: true,
+                        });
+                        return bodyRows.map((br, ri) => (
+                          <tr
+                            key={ri}
+                            style={{
+                              fontWeight: br.isTotal ? 600 : undefined,
+                              background: br.isTotal ? totalBg : undefined,
+                              borderTop: br.borderBefore,
+                              borderBottom: br.borderAfter,
+                            }}
+                          >
+                            {br.isFirstInBlock ? (
+                              <td
+                                rowSpan={br.blockRowCount}
+                                style={{
+                                  padding: '0.5rem 0.75rem',
+                                  borderBottom: br.borderAfter,
+                                  borderTop: br.borderBefore,
+                                  borderRight: borderThin,
+                                  fontWeight: 600,
+                                  verticalAlign: 'top',
+                                }}
+                              >
+                                {br.blockGeo}
+                              </td>
+                            ) : br.isGrandTotal ? (
+                              <td style={{ padding: '0.5rem 0.75rem', borderBottom: br.borderAfter, borderTop: br.borderBefore, borderRight: borderThin }} />
+                            ) : null}
+                            <td style={{ padding: '0.5rem 0.75rem', borderBottom: br.borderAfter || borderThin, borderTop: br.borderBefore, borderRight: borderThin, minWidth: '8.5rem', wordBreak: 'break-word' }}>
+                              {br.segmentLabel}
+                            </td>
+                            {groupedPivot.metricSpecs.map((spec) => (
+                              <React.Fragment key={spec.key}>
+                                {groupedPivot.timeColumns.map((q, qi) => {
+                                  const v = groupedPivot.getValue(br.rowGroup, spec.key, q);
+                                  const isLastInGroup = qi === groupedPivot.timeColumns.length - 1;
+                                  return (
+                                    <td
+                                      key={q}
+                                      style={{
+                                        textAlign: 'right',
+                                        padding: '0.5rem 0.75rem',
+                                        borderBottom: br.borderAfter || borderThin,
+                                        borderTop: br.borderBefore,
+                                        borderRight: isLastInGroup ? '2px solid #3f3f46' : borderThin,
+                                        color: '#3b82f6',
+                                      }}
+                                    >
+                                      {spec.format(v)}
+                                    </td>
+                                  );
+                                })}
+                              </React.Fragment>
+                            ))}
+                            <td
+                              style={{
+                                textAlign: 'right',
+                                padding: '0.5rem 0.75rem',
+                                borderBottom: br.borderAfter || borderThin,
+                                borderTop: br.borderBefore,
+                                borderRight: borderThin,
+                                color: '#3b82f6',
+                                fontWeight: br.isTotal ? 600 : undefined,
+                              }}
+                            >
+                              {groupedPivot.getWeightedAvgMrrpv(br.rowGroup) != null
+                                ? `$${Number(groupedPivot.getWeightedAvgMrrpv(br.rowGroup)).toFixed(2)}`
+                                : '—'}
+                            </td>
+                          </tr>
+                        ));
+                      })()
+                    ) : (
+                      groupedPivot.rowGroups.map((rowGroup, ri) => {
+                        const isTotal = rowGroup.type === 'total' || rowGroup.type === 'grand';
+                        const segmentLabel = rowGroup.type === 'segment' ? rowGroup.segment : rowGroup.type === 'industry' ? rowGroup.industry : rowGroup.label;
+                        const borderAfter = rowGroup.type === 'total' ? '2px solid #3f3f46' : undefined;
+                        const borderBefore = rowGroup.type === 'grand' ? '2px solid #3f3f46' : undefined;
+                        const borderGroup = '2px solid #3f3f46';
+                        return (
+                          <tr
+                            key={ri}
+                            style={{
+                              fontWeight: isTotal ? 600 : undefined,
+                              background: isTotal ? 'rgba(59, 130, 246, 0.08)' : undefined,
+                              borderTop: borderBefore,
+                              borderBottom: borderAfter,
+                            }}
+                          >
+                            <td style={{ padding: '0.5rem 0.75rem', borderBottom: borderAfter || '1px solid #27272a', borderTop: borderBefore }}>
+                              {segmentLabel}
+                            </td>
+                            {groupedPivot.metricSpecs.map((spec) => (
+                              <React.Fragment key={spec.key}>
+                                {groupedPivot.timeColumns.map((q, qi) => {
+                                  const v = groupedPivot.getValue(rowGroup, spec.key, q);
+                                  const isLastInGroup = qi === groupedPivot.timeColumns.length - 1;
+                                  return (
+                                    <td
+                                      key={q}
+                                      style={{
+                                        textAlign: 'right',
+                                        padding: '0.5rem 0.75rem',
+                                        borderBottom: borderAfter || '1px solid #27272a',
+                                        borderTop: borderBefore,
+                                        borderRight: isLastInGroup ? borderGroup : undefined,
+                                        color: '#3b82f6',
+                                      }}
+                                    >
+                                      {spec.format(v)}
+                                    </td>
+                                  );
+                                })}
+                              </React.Fragment>
+                            ))}
+                            <td
+                              style={{
+                                textAlign: 'right',
+                                padding: '0.5rem 0.75rem',
+                                borderBottom: borderAfter || '1px solid #27272a',
+                                borderTop: borderBefore,
+                                color: '#3b82f6',
+                                fontWeight: isTotal ? 600 : undefined,
+                              }}
+                            >
+                              {groupedPivot.getWeightedAvgMrrpv(rowGroup) != null
+                                ? `$${Number(groupedPivot.getWeightedAvgMrrpv(rowGroup)).toFixed(2)}`
+                                : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+                </div>
+              </div>
+            ) : pivot.usePivot ? (
+              <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }} />
+                      {pivot.timeColumns.map((q) => (
+                        <th key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: '4.5rem', whiteSpace: 'nowrap' }}>
+                          {q}
+                        </th>
+                      ))}
+                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }}>
+                        Grand Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pivot.metricRows.map((row) => {
+                      const spec = specFor(row.key);
+                      const fmt = spec?.format || String;
+                      return (
+                        <tr key={row.key} style={{ borderBottom: '1px solid #27272a' }}>
+                          <td style={{ padding: '0.5rem 0.75rem', fontWeight: 500 }}>{row.label}</td>
+                          {pivot.timeColumns.map((q) => (
+                            <td key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#3b82f6' }}>
+                              {fmt(row.valuesByQuarter[q])}
+                            </td>
+                          ))}
+                          <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', fontWeight: 600, color: '#3b82f6' }}>
+                            {fmt(row.grandTotal)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr>
+                      {cols.map((col) => (
+                        <th
+                          key={col.name}
+                          style={{
+                            textAlign: 'left',
+                            padding: '0.5rem 0.75rem',
+                            background: '#27272a',
+                            borderBottom: '1px solid #3f3f46',
+                          }}
+                        >
+                          {col.name}
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {(lastResult.rowCount > maxDisplay || displayData.length > maxDisplay) && (
+                  </thead>
+                  <tbody>
+                    {tableRows.map((row, i) => (
+                      <tr key={i} style={row[cols[0]?.name] === 'Overall' ? { fontWeight: 600, background: 'rgba(59, 130, 246, 0.08)' } : undefined}>
+                        {cols.map((col) => (
+                          <td
+                            key={col.name}
+                            style={{
+                              padding: '0.5rem 0.75rem',
+                              borderBottom: '1px solid #27272a',
+                            }}
+                          >
+                            {formatCell(col.name, row[col.name])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {(lastResult.rowCount > maxDisplay || displayData.length > maxDisplay) && !pivot.usePivot && (
               <p style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.25rem' }}>
                 Showing first {maxDisplay} of {Math.max(lastResult.rowCount ?? 0, displayData.length)} rows.
               </p>

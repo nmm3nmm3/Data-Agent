@@ -38,8 +38,10 @@ app.get('/health', async (req, res) => {
 import queryRoutes from './routes/query.js';
 import chatRoutes from './routes/chat.js';
 import adminRoutes from './routes/admin.js';
+import viewsRoutes from './routes/views.js';
 app.use('/api/query', queryRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/views', viewsRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Serve built frontend in production (when frontend/dist exists)

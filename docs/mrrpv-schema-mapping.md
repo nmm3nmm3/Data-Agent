@@ -31,6 +31,53 @@ Use these when the user says “by industry”, “by segment”, “by region/g
 
 ---
 
+## Dimension values: plain-English ↔ table values (segment & geo)
+
+When the user says a segment or geo in plain English (e.g. "Mid-Market", "United States"), map to the **exact value** stored in the table for filters and display. **All mappings in this section (segment, geo, and super-regions) are case-insensitive** — e.g. "mid market", "Mid Market", and "MM" all map to segment `MM`; "north america" or "North America" map to NA.
+
+Use these when interpreting "exclude MM", "remove EMEA", "NA only", filters, or row labels. The **Table value** is what appears in the `segment` or `geo` column (or the UI super-region label); the **User may say** column lists accepted plain-English terms that map to it.
+
+### Segment (table column: `segment`)
+
+| Table value | User may say (any capitalization) |
+|-------------|-----------------------------------|
+| **MM** | Mid-Market, Mid Market |
+| **ENT - COR** | Cor, Core |
+| **ENT - SEL** | Select |
+| **ENT - STR** | Strategic |
+
+### Geo (table column: `geo`)
+
+| Table value | User may say (any capitalization) |
+|-------------|-----------------------------------|
+| **US** | USA, United States, America |
+| **CA** | Canada |
+| **MX** | Mexico |
+| **UK** | United Kingdom, UKI |
+| **FR** | France |
+| **DACH** | Germany |
+| **BNL** | BeNeLux, Belgium, Netherlands, Luxembourg |
+| **US - SLED** | Public Sector, Government |
+
+### Super-regions (NA / EMEA)
+
+The UI groups geos into super-regions.
+
+| Super-region (UI label) | User may say (any capitalization) |
+|-------------------------|-----------------------------------|
+| **NA** | North America |
+| **EMEA** | Europe, Europe Middle East & Africa |
+
+**Note:** Geo → super-region: US, CA, MX, US-SLED, US - SLED → NA; UK, DACH, FR, BNL → EMEA. Use the table geo values when calling the API (e.g. `exclude_regions: ["UK","DACH","FR","BNL"]` for EMEA).
+
+---
+
+## Time / quarters
+
+- **time_window (API):** Optional. Can be a **single quarter** (e.g. `"FY26 Q4"`) or **comma-separated quarters** for multi-quarter views (e.g. `"FY25 Q3,FY26 Q3,FY27 Q3"`). Use the latter when the user asks for "last three Q3s", "MRRpV by industry for the last three Q3s", or similar—one call returns rows for each (group, quarter). Format: `FYnn Qn` (e.g. FY26 Q2, FY27 Q1).
+
+---
+
 ## Value columns (MRRpV and vehicle count) by source
 
 | Data source | Time column | Value (revenue) column | Vehicle count column | Notes |
@@ -127,6 +174,8 @@ When a user asks about a **product area** (e.g. “Telematics”, “Safety + Te
 
 | Date | Change |
 |------|--------|
+| 2026-02-26 | Added Dimension values: plain-English ↔ table values for segment (MM=Mid-Market, ENT - COR=Core, ENT - SEL=Select, ENT - STR=Strategic) and geo (US=USA/United States/America, CA=Canada, MX=Mexico, UK=United Kingdom/UKI, FR=France, DACH=Germany, BNL=BeNeLux/Belgium/Netherlands/Luxembourg, US - SLED=Public Sector/Government). All rules ignore capitalization. |
+| 2026-02-26 | Added super-region plain-English: NA = North America; EMEA = Europe, Europe Middle East & Africa (case-insensitive). |
 | 2026-02-20 | Added mapping for first purchase, upsell, and fleet; plain-English ↔ column table; value columns per source. |
 | 2026-02-20 | Added Product / feature columns section: plain-English (Telematics, VGCM, AI Multicam, etc.) → column prefix and example columns per table. Backend mirror: `backend/src/queries/column-glossary.js`. |
 | 2026-02-20 | Added Term definitions: metrics (ACV, Count/Licenses, ARR, MRRpV) and product names (Moby=360 visibility, CM_D/CM_S=dual/single camera, C-Nav=commercial navigation, FLAPPS=Fleet Applications/Software, CC=Camera Connector/Portfolio, CAM=Maintenance, Qual=Qualifications, SAT=Satellite, AHD1=HD Camera Connector). CC overwritten from Compliance to Camera Connector. Glossary updated; METRIC_TERMS added. |

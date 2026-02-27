@@ -34,8 +34,8 @@ const SOURCE_CONFIG = {
     annual: false,
     acvCol: 'fleet_acv',
     accountIdCol: 'account_id',
-    groupBySqlColumn: { industry: 'industry', segment: 'segment', geo: 'geo' },
-    allowedGroupBy: ['industry', 'segment', 'geo'],
+    groupBySqlColumn: { industry: 'industry', segment: 'segment', geo: 'geo', geo_segment: 'geo,segment' },
+    allowedGroupBy: ['industry', 'segment', 'geo', 'geo_segment'],
   },
   upsell: {
     table: 'mrrpv_upsell',
@@ -45,8 +45,8 @@ const SOURCE_CONFIG = {
     annual: true,
     acvCol: 'upsell_fleet_arr',
     accountIdCol: 'account_id',
-    groupBySqlColumn: { industry: 'industry', segment: 'segment', geo: 'geo' },
-    allowedGroupBy: ['industry', 'segment', 'geo'],
+    groupBySqlColumn: { industry: 'industry', segment: 'segment', geo: 'geo', geo_segment: 'geo,segment' },
+    allowedGroupBy: ['industry', 'segment', 'geo', 'geo_segment'],
   },
 };
 
@@ -80,29 +80,32 @@ const PRODUCT_COUNT_COLUMNS = {
 };
 
 /**
- * Map common time_window phrases to a SQL-safe value for close_quarter.
- * Caller can pass a literal like "FY27 Q1" which we use as-is (escaped).
+ * Parse time_window into one or more SQL-safe close_quarter values.
+ * Accepts a single quarter ("FY26 Q4") or comma-separated quarters ("FY25 Q3,FY26 Q3,FY27 Q3").
+ * Returns null if empty; otherwise array of escaped strings for use in WHERE timeCol IN (...).
  */
-function resolveTimeWindow(timeWindow) {
+function resolveTimeWindows(timeWindow) {
   if (!timeWindow || typeof timeWindow !== 'string') return null;
-  const t = timeWindow.trim();
-  if (!t) return null;
-  return t.replace(/'/g, "''");
+  const parts = timeWindow.split(',').map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  return parts.map((p) => p.replace(/'/g, "''"));
 }
 
 /**
  * Build and run MRRpV query for the given data source.
- * @param {{ dataSource?: string, timeWindow?: string, groupBy?: string | null, filters?: object, includeProduct?: string, includeAccountCount?: boolean, includeAvgDealSize?: boolean }} params
+ * @param {{ dataSource?: string, timeWindow?: string, groupBy?: string | null, filters?: object, includeProduct?: string, includeAccountCount?: boolean, includeAvgDealSize?: boolean, includeAcv?: boolean }} params
+ *   timeWindow: one quarter ("FY26 Q4") or comma-separated quarters ("FY25 Q3,FY26 Q3,FY27 Q3") for multi-quarter views.
  *   includeProduct: product prefix to restrict to deals with that product's license count > 0.
  *   includeAccountCount: add account_count (distinct account_id) column.
  *   includeAvgDealSize: add avg_deal_size (ACV per account) column.
+ *   includeAcv: if false, omit ACV column from the result (default true).
  * @returns {Promise<{ columns, rows, data, overall?: { fleet_mrrpv, vehicle_count, acv?, account_count?, avg_deal_size? } }>}
  */
 export async function getMRRpV(params = {}) {
-  const { dataSource: rawSource, timeWindow, groupBy, filters = {}, includeProduct, includeAccountCount, includeAvgDealSize } = params;
+  const { dataSource: rawSource, timeWindow, groupBy, filters = {}, includeProduct, includeAccountCount, includeAvgDealSize, includeAcv = true } = params;
   const dataSource = rawSource && String(rawSource).toLowerCase() || 'fleet';
   const config = getSourceConfig(dataSource);
-  const period = resolveTimeWindow(timeWindow);
+  const periods = resolveTimeWindows(timeWindow);
 
   const productCountCol = includeProduct && PRODUCT_COUNT_COLUMNS[dataSource]?.[String(includeProduct).toLowerCase()];
   if (includeProduct && !productCountCol) {
@@ -114,7 +117,7 @@ export async function getMRRpV(params = {}) {
   if (groupBy !== undefined && groupBy !== null && !allowedGroupBy.has(groupBy)) {
     throw new Error(`Invalid groupBy: ${groupBy}. Allowed for ${dataSource}: ${config.allowedGroupBy.join(', ')}`);
   }
-  if (timeWindow !== undefined && timeWindow !== null && typeof timeWindow === 'string' && timeWindow.length > 100) {
+  if (timeWindow !== undefined && timeWindow !== null && typeof timeWindow === 'string' && timeWindow.length > 400) {
     throw new Error('timeWindow too long');
   }
   if (filters?.region !== undefined && String(filters.region).length > 100) {
@@ -123,11 +126,25 @@ export async function getMRRpV(params = {}) {
   if (filters?.segment !== undefined && String(filters.segment).length > 100) {
     throw new Error('segment filter too long');
   }
+  const regionsList = Array.isArray(filters.regions) ? filters.regions.filter((g) => g != null && String(g).length <= 100) : [];
+  const excludeRegionsList = Array.isArray(filters.excludeRegions) ? filters.excludeRegions.filter((g) => g != null && String(g).length <= 100) : [];
+  const segmentsList = Array.isArray(filters.segments) ? filters.segments.filter((s) => s != null && String(s).length <= 100) : [];
+  const excludeSegmentsList = Array.isArray(filters.excludeSegments) ? filters.excludeSegments.filter((s) => s != null && String(s).length <= 100) : [];
+  const industriesList = Array.isArray(filters.industries) ? filters.industries.filter((i) => i != null && String(i).length <= 100) : [];
+  const excludeIndustriesList = Array.isArray(filters.excludeIndustries) ? filters.excludeIndustries.filter((i) => i != null && String(i).length <= 100) : [];
+  if (regionsList.length > 50) throw new Error('regions filter too long');
+  if (excludeRegionsList.length > 50) throw new Error('excludeRegions filter too long');
+  if (segmentsList.length > 50) throw new Error('segments filter too long');
+  if (excludeSegmentsList.length > 50) throw new Error('excludeSegments filter too long');
+  if (industriesList.length > 50) throw new Error('industries filter too long');
+  if (excludeIndustriesList.length > 50) throw new Error('excludeIndustries filter too long');
 
   const sqlCol = groupBy ? (config.groupBySqlColumn[groupBy] ?? groupBy) : null;
   if (groupBy && !sqlCol) {
     throw new Error(`Unknown groupBy: ${groupBy}. Allowed: ${config.allowedGroupBy.join(', ')}`);
   }
+  const isGeoSegment = groupBy === 'geo_segment';
+  const groupBySqlCols = isGeoSegment ? ['geo', 'segment'] : (sqlCol ? [sqlCol] : []);
 
   const fullTable = `${CATALOG}.${SCHEMA}.${config.table}`;
   const timeCol = config.timeCol;
@@ -150,71 +167,136 @@ export async function getMRRpV(params = {}) {
     countExpr = `SUM(${config.countCol}) AS vehicle_count`;
   }
 
-  const acvExpr = config.acvCol ? `SUM(${config.acvCol}) AS acv` : null;
+  const acvExpr = includeAcv !== false && config.acvCol ? `SUM(${config.acvCol}) AS acv` : null;
   const accountIdCol = config.accountIdCol || 'account_id';
   const accountCountExpr = (includeAccountCount || includeAvgDealSize) ? `COUNT(DISTINCT ${accountIdCol}) AS account_count` : null;
   const avgDealSizeExpr = includeAvgDealSize && config.acvCol
     ? `ROUND(SUM(${config.acvCol}) / NULLIF(COUNT(DISTINCT ${accountIdCol}), 0), 2) AS avg_deal_size`
     : null;
   const extraCols = [...(accountCountExpr ? [accountCountExpr] : []), ...(avgDealSizeExpr ? [avgDealSizeExpr] : [])];
-  const selectCols = groupBy
-    ? [
-        `${sqlCol} AS ${groupBy}`,
-        `${mrrpvExpr} AS fleet_mrrpv`,
-        countExpr,
-        ...(acvExpr ? [acvExpr] : []),
-        ...extraCols,
-        timeCol,
-      ]
-    : [
-        `${mrrpvExpr} AS fleet_mrrpv`,
-        countExpr,
-        ...(acvExpr ? [acvExpr] : []),
-        ...extraCols,
-        timeCol,
-      ];
-
-  const groupByClause = groupBy ? ` GROUP BY ${sqlCol}, ${timeCol}` : '';
-
   const where = [];
-  if (period) {
-    where.push(`${timeCol} = '${period}'`);
+  if (periods && periods.length > 0) {
+    if (periods.length === 1) {
+      where.push(`${timeCol} = '${periods[0]}'`);
+    } else {
+      where.push(`${timeCol} IN (${periods.map((p) => `'${p}'`).join(', ')})`);
+    }
   }
-  if (filters.region) {
+  if (regionsList.length > 0) {
+    const escaped = regionsList.map((g) => `'${String(g).replace(/'/g, "''")}'`);
+    where.push(`(geo IN (${escaped.join(', ')}))`);
+  } else if (excludeRegionsList.length > 0) {
+    const escaped = excludeRegionsList.map((g) => `'${String(g).replace(/'/g, "''")}'`);
+    where.push(`(geo NOT IN (${escaped.join(', ')}))`);
+  } else if (filters.region) {
     where.push(`(geo = '${String(filters.region).replace(/'/g, "''")}')`);
   }
-  if (filters.segment) {
+  if (segmentsList.length > 0) {
+    const escaped = segmentsList.map((s) => `'${String(s).replace(/'/g, "''")}'`);
+    where.push(`(segment IN (${escaped.join(', ')}))`);
+  } else if (excludeSegmentsList.length > 0) {
+    const escaped = excludeSegmentsList.map((s) => `'${String(s).replace(/'/g, "''")}'`);
+    where.push(`(segment NOT IN (${escaped.join(', ')}))`);
+  } else if (filters.segment) {
     where.push(`(segment = '${String(filters.segment).replace(/'/g, "''")}')`);
+  }
+  if (config.allowedGroupBy.includes('industry')) {
+    if (industriesList.length > 0) {
+      const escaped = industriesList.map((i) => `'${String(i).replace(/'/g, "''")}'`);
+      where.push(`(industry IN (${escaped.join(', ')}))`);
+    } else if (excludeIndustriesList.length > 0) {
+      const escaped = excludeIndustriesList.map((i) => `'${String(i).replace(/'/g, "''")}'`);
+      where.push(`(industry NOT IN (${escaped.join(', ')}))`);
+    } else if (filters.industry) {
+      where.push(`(industry = '${String(filters.industry).replace(/'/g, "''")}')`);
+    }
   }
   if (productCountCol) {
     where.push(`(${productCountCol} > 0)`);
   }
   const whereClause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
 
-  const orderCols = groupBy ? `${sqlCol}, ${timeCol}` : timeCol;
+  // Overall (no group_by): Databricks rejects GROUP BY (). Use GROUP BY timeCol when filtered (one row per quarter), else GROUP BY 1 with a constant.
+  const overallOneRow = !groupBy;
+  const overallUseTimeGroup = overallOneRow && periods != null && periods.length > 0;
+  const overallUseConstantGroup = overallOneRow && !overallUseTimeGroup;
+
+  const selectCols = groupBy
+    ? (isGeoSegment
+        ? [
+            'geo',
+            'segment',
+            `${mrrpvExpr} AS fleet_mrrpv`,
+            countExpr,
+            ...(acvExpr ? [acvExpr] : []),
+            ...extraCols,
+            timeCol,
+          ]
+        : [
+            `${sqlCol} AS ${groupBy}`,
+            `${mrrpvExpr} AS fleet_mrrpv`,
+            countExpr,
+            ...(acvExpr ? [acvExpr] : []),
+            ...extraCols,
+            timeCol,
+          ])
+    : overallUseTimeGroup
+      ? [
+          timeCol,
+          `${mrrpvExpr} AS fleet_mrrpv`,
+          countExpr,
+          ...(acvExpr ? [acvExpr] : []),
+          ...extraCols,
+        ]
+      : [
+          `1 AS _grp`,
+          `${mrrpvExpr} AS fleet_mrrpv`,
+          countExpr,
+          ...(acvExpr ? [acvExpr] : []),
+          ...extraCols,
+          `MAX(${timeCol}) AS ${timeCol}`,
+        ];
+
+  const groupByClause = groupBy
+    ? (isGeoSegment ? ` GROUP BY geo, segment, ${timeCol}` : ` GROUP BY ${sqlCol}, ${timeCol}`)
+    : overallUseTimeGroup
+      ? ` GROUP BY ${timeCol}`
+      : overallUseConstantGroup
+        ? ' GROUP BY 1'
+        : '';
+
+  const orderCols = groupBy ? (isGeoSegment ? `geo, segment, ${timeCol}` : `${sqlCol}, ${timeCol}`) : overallUseTimeGroup ? timeCol : timeCol;
   const sql = `SELECT ${selectCols.join(', ')} FROM ${fullTable}${whereClause}${groupByClause} ORDER BY ${orderCols} LIMIT 5000`;
 
   const expectedColNames = groupBy
-    ? [groupBy, 'fleet_mrrpv', 'vehicle_count', ...(acvExpr ? ['acv'] : []), ...(accountCountExpr ? ['account_count'] : []), ...(avgDealSizeExpr ? ['avg_deal_size'] : []), timeCol]
-    : ['fleet_mrrpv', 'vehicle_count', ...(acvExpr ? ['acv'] : []), ...(accountCountExpr ? ['account_count'] : []), ...(avgDealSizeExpr ? ['avg_deal_size'] : []), timeCol];
+    ? (isGeoSegment ? ['geo', 'segment', 'fleet_mrrpv', 'vehicle_count', ...(acvExpr ? ['acv'] : []), ...(accountCountExpr ? ['account_count'] : []), ...(avgDealSizeExpr ? ['avg_deal_size'] : []), timeCol] : [groupBy, 'fleet_mrrpv', 'vehicle_count', ...(acvExpr ? ['acv'] : []), ...(accountCountExpr ? ['account_count'] : []), ...(avgDealSizeExpr ? ['avg_deal_size'] : []), timeCol])
+    : overallUseTimeGroup
+      ? [timeCol, 'fleet_mrrpv', 'vehicle_count', ...(acvExpr ? ['acv'] : []), ...(accountCountExpr ? ['account_count'] : []), ...(avgDealSizeExpr ? ['avg_deal_size'] : [])]
+      : ['fleet_mrrpv', 'vehicle_count', ...(acvExpr ? ['acv'] : []), ...(accountCountExpr ? ['account_count'] : []), ...(avgDealSizeExpr ? ['avg_deal_size'] : []), timeCol];
 
   const { columns: rawColumns, rows: rawRows } = await runSql(sql);
 
-  const columns =
+  const rawColNames = rawColumns.length > 0 ? rawColumns.map((c) => c.name) : (overallUseConstantGroup ? ['_grp', ...expectedColNames] : expectedColNames);
+  const rawColCount = rawColNames.length;
+
+  let columns =
     rawColumns.length > 0
       ? rawColumns
-      : expectedColNames.map((name) => ({ name }));
+      : rawColNames.map((name) => ({ name }));
 
-  const colCount = columns.length;
+  if (overallUseConstantGroup && columns.some((c) => c.name === '_grp')) {
+    columns = columns.filter((c) => c.name !== '_grp');
+  }
+
   const rows =
-    colCount > 0 &&
+    rawColCount > 0 &&
     rawRows.length > 0 &&
     !Array.isArray(rawRows[0]) &&
-    rawRows.length % colCount === 0
+    rawRows.length % rawColCount === 0
       ? (() => {
           const out = [];
-          for (let i = 0; i < rawRows.length; i += colCount) {
-            out.push(rawRows.slice(i, i + colCount));
+          for (let i = 0; i < rawRows.length; i += rawColCount) {
+            out.push(rawRows.slice(i, i + rawColCount));
           }
           return out;
         })()
@@ -222,8 +304,9 @@ export async function getMRRpV(params = {}) {
 
   const data = rows.map((row) => {
     const obj = {};
-    columns.forEach((col, i) => {
-      obj[col.name] = row[i];
+    columns.forEach((col) => {
+      const idx = rawColNames.indexOf(col.name);
+      if (idx >= 0) obj[col.name] = Array.isArray(row) ? row[idx] : row[col.name];
     });
     return obj;
   });

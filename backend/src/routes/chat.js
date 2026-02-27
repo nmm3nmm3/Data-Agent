@@ -27,12 +27,12 @@ const conversations = new Map();
 
 /**
  * POST /api/chat
- * Body: { message: string, conversationId?: string, dataSource?: 'fleet'|'first_purchase'|'upsell' }
+ * Body: { message: string, conversationId?: string, dataSource?: 'fleet'|'first_purchase'|'upsell', currentView?: { presetId?, label?, time_window?, group_by?, region?, segment? } }
  * Response: { reply, lastResult?: { data, columns, rowCount }, toolCalls?, querySummary?, conversationId }
  */
 router.post('/', async (req, res) => {
   try {
-    const { message, conversationId: id, dataSource } = req.body || {};
+    const { message, conversationId: id, dataSource, currentView } = req.body || {};
     if (!message || typeof message !== 'string') {
       res.status(400).json({ error: 'message is required' });
       return;
@@ -48,13 +48,14 @@ router.post('/', async (req, res) => {
     history.push({ role: 'user', content: message.trim() });
 
     const start = Date.now();
-    let reply, toolCalls, lastResult;
+    let reply, toolCalls, lastResult, lastToolError;
     let success = true;
     try {
-      const out = await runAgent({ messages: history, dataSource });
+      const out = await runAgent({ messages: history, dataSource, currentView });
       reply = out.reply;
       toolCalls = out.toolCalls;
       lastResult = out.lastResult;
+      lastToolError = out.lastToolError;
     } catch (err) {
       success = false;
       reply = err.message || 'Agent failed';
@@ -85,7 +86,14 @@ router.post('/', async (req, res) => {
           group_by: mrrpvCall.args?.group_by,
           include_product: mrrpvCall.args?.include_product,
           region: mrrpvCall.args?.region,
+          regions: mrrpvCall.args?.regions,
+          exclude_regions: mrrpvCall.args?.exclude_regions,
           segment: mrrpvCall.args?.segment,
+          segments: mrrpvCall.args?.segments,
+          exclude_segments: mrrpvCall.args?.exclude_segments,
+          industries: mrrpvCall.args?.industries,
+          exclude_industries: mrrpvCall.args?.exclude_industries,
+          include_acv: mrrpvCall.args?.include_acv,
         }
       : undefined;
 
@@ -101,6 +109,7 @@ router.post('/', async (req, res) => {
             overall: lastResult.overall,
           }
         : undefined,
+      lastToolError: lastToolError || undefined,
       conversationId,
     });
   } catch (err) {

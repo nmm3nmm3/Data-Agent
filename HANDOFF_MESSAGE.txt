@@ -1,3 +1,13 @@
 I'm continuing work on the Data-Agent app. Full handoff is in Data-Agent/HANDOFF.md — read that file first.
 
-**Summary:** Data-Agent is an AI-assisted MRRpV app. Three data sources (first_purchase, upsell, fleet); toggle order First purchases, Upsell, Fleet overall; default First purchases. First-purchase MRRpV not divided by 12. getMRRpV: time_window optional (omit = all data), group_by optional (omit = overall), include_product (deals with product license count > 0), includeAccountCount/includeAvgDealSize for account_count and avg_deal_size; result includes overall summary. Agent: MRRPV_RULES prepended (never ask for grouping; always state overall). Schema mapping: docs/mrrpv-schema-mapping.md; glossary: backend/src/queries/column-glossary.js. Run: npm run dev from Data-Agent root; .env in root; SSL: NODE_TLS_REJECT_UNAUTHORIZED=0 for local. See HANDOFF.md for paths and open items.
+Summary:
+- Data-Agent is an AI-assisted MRRpV app; target hosting is Databricks App. Three data sources: First purchases, Upsell, Fleet overall (toggle in UI; default First purchases).
+- Preset views: First Purchase MRRpV (overall), by Industry, by Geo-Segment. Views dropdown from GET /api/views (registry: backend/src/views/first-purchase-views.js); default 4 quarters. Table: time-as-columns for overall; grouped pivot for geo-segment/industry with NA/EMEA merged cells, metric borders, Avg MRRpV column, optional Vehicles/Deal count toggles.
+- Backend filters: regions, excludeRegions, segments, excludeSegments, industries, excludeIndustries (backend/src/queries/mrrpv.js). Frontend sends currentView (preset + querySummary) with chat; agent gets buildCurrentViewPrompt and re-runs with exclude_regions/exclude_segments/exclude_industries (or include arrays) when user says "remove EMEA", "remove CML", etc. Agent tools: get_mrrpv with those filter params; comparisons = two get_mrrpv calls.
+- getMRRpV: time_window (one or comma-separated quarters), group_by, include_product, includeAccountCount/includeAvgDealSize; result includes overall. Schema: docs/mrrpv-schema-mapping.md; glossary: backend/src/queries/column-glossary.js.
+- Run: npm run dev from Data-Agent root; .env in root; NODE_TLS_REJECT_UNAUTHORIZED=0 for local if needed.
+
+Next steps (read HANDOFF.md and the plan):
+- Key paths, preset-view details, and "How to continue work": see HANDOFF.md.
+- Plan: .cursor/plans/first-purchase_preset_views_713314d5.plan.md (Phase 1 implemented; further work as needed).
+- Agent/prompt design: Craft broadly applicable rules (e.g. "include/restore previously excluded rows" for any dimension), not narrow use-case-specific rules. See HANDOFF.md "Agent and prompt design (critical)".

@@ -1,8 +1,8 @@
 # Data-Agent
 
-AI-assisted business metrics app. Users ask for metrics in plain language; the app uses OpenAI to interpret intent and invoke the correct query functions against Databricks. **All calculations run in Databricks** — the model does not perform math, only routes to tools.
+AI-assisted business metrics app. Users ask for metrics in plain language; the app uses OpenAI to interpret intent and invoke query functions against Databricks. **All calculations run in Databricks** — the model only routes to tools.
 
-Initial use case: **Monthly Recurring Revenue per Vehicle (MRRpV)**. The app queries `businessdbs.epofinance_prod.mrrpv_fleet` (and supports grouping by segment/geo and filters).
+**Use case: MRRpV (Monthly Recurring Revenue per Vehicle).** Three data sources (First purchases, Upsell, Fleet overall). **Preset views** (First Purchase overall by quarter, by Industry, by Geo-Segment) with a Views dropdown; select a preset to run it, or use chat to ask for metrics or **modify the current view** (e.g. "remove EMEA", "remove the row for CML"). The agent receives **current view context** (preset + params) and re-runs the query with the requested filters (exclude_regions, exclude_segments, exclude_industries, or include-only arrays). Tables support time-as-columns pivots, geo/segment merged cells (NA vs EMEA), and weighted Avg MRRpV column. See **HANDOFF.md** for full state and paths.
 
 ---
 
@@ -141,10 +141,16 @@ For chat and Databricks queries you must set secrets (see below). For Stage 1 te
 ## Example prompts
 
 - “What was MRRpV by region last quarter?”
-- “Show me MRRpV by segment for FY27 Q1”
-- “MRRpV for US only”
+- “Show me MRRpV by industry for FY27 Q1”
+- Select **First Purchase MRRpV by Geo-Segment** in the Views dropdown, then in chat: "remove the rows for EMEA" or "remove the row for CML"
+- "MRRpV last 2 Qs, AIM4 vs not AIM4" (agent runs two get_mrrpv calls and compares)
 
-Refine in follow-ups: “Narrow to enterprise segment” or “By geo instead.”
+Refine in follow-ups: “Remove passenger transit” (industry view), “Only show NA”, or “Narrow to enterprise segment.”
+
+## Handoff for next agent
+
+- **Read HANDOFF.md first** for current state, key paths, and how to continue.
+- Paste **HANDOFF_MESSAGE.txt** (Data-Agent root) into a new chat to give the next agent full context.
 
 ## MRRpV spec
 
@@ -180,6 +186,20 @@ Node cannot verify OpenAI’s TLS certificate. This often happens on corporate n
 ## Repo and GitHub
 
 The **P&P Financial Metrics** folder (Tableau workbooks) must **never** be committed or pushed to GitHub. It is listed in `.gitignore`. Keep that folder local only.
+
+## Handoff for next agent
+
+- **Read HANDOFF.md first** for current state, key paths, and how to continue.
+- Copy the contents of **HANDOFF_MESSAGE.txt** (in Data-Agent root) into a new chat to give the next agent full context.
+- Implementation state: preset views, GET /api/views, Views dropdown, geo-segment/industry pivots, current-view context, and row add/drop filters are in place. See HANDOFF.md for details.
+
+## Preset views and table layout
+
+- **Views dropdown:** Lists presets from GET /api/views (registry: `backend/src/views/first-purchase-views.js`). Presets: First Purchase MRRpV (overall by quarter), by Industry, by Geo-Segment. Default time window: last 4 quarters (FY26 Q2–FY27 Q1).
+- **Table layout:** Overall-by-quarter uses time as columns and metrics as rows (with Grand Total). Geo-segment and industry use **grouped pivot**: metric groups (MRRpV, ACV; optionally Vehicles/Deal count via toggles) with quarter sub-columns, borders between metric groups, **Avg MRRpV** (weighted) on the right. Geo-segment: NA/EMEA as **merged cells** (rowSpan), segment rows beneath; geo mapping: US, CA, MX, US-SLED, US - SLED → NA; UK, DACH, FR, BNL → EMEA.
+- **Modifying the view via chat:** Frontend sends **currentView** (preset label + time_window, group_by, etc.) with each message. Agent is instructed to re-run the same view with overrides when the user asks to remove or show only rows (exclude_regions, exclude_segments, exclude_industries, or regions/segments/industries). Users can remove items and later add them back (e.g. "remove EMEA" then "include EMEA again"); the agent removes or adds values to the relevant exclude_* list.
+
+**Agent and prompt design:** When adding or changing agent rules or tool descriptions, craft **broadly applicable** rules that cover whole classes of behavior (e.g. "when the user asks to include or restore previously excluded rows, remove those values from the corresponding exclude_* list") rather than narrow, use-case-specific rules (e.g. a rule that only handles "public sector"). General rules scale; one-off rules multiply and become hard to maintain. See HANDOFF.md for the same principle.
 
 ## Future: Databricks App
 
