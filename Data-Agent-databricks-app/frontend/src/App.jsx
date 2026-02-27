@@ -324,7 +324,7 @@ function SimpleBarChart({ data, columns, excludeOverall }) {
               style={{
                 flex: 1,
                 height: 24,
-                background: '#f5f5f5',
+                background: '#27272a',
                 borderRadius: 4,
                 overflow: 'hidden',
               }}
@@ -333,7 +333,7 @@ function SimpleBarChart({ data, columns, excludeOverall }) {
                 style={{
                   width: `${(100 * (Number(row[valueCol.name]) || 0)) / maxVal}%`,
                   height: '100%',
-                  background: '#1976d2',
+                  background: '#3b82f6',
                   borderRadius: 4,
                 }}
               />
@@ -401,7 +401,7 @@ function AdminPage() {
     return (
       <div style={{ padding: '2rem', maxWidth: 600 }}>
         <h2>Admin</h2>
-        <p style={{ color: '#555' }}>Optional: enter admin secret if configured.</p>
+        <p style={{ color: '#a1a1aa' }}>Optional: enter admin secret if configured.</p>
         <input
           type="password"
           placeholder="Admin secret"
@@ -417,9 +417,9 @@ function AdminPage() {
     <div style={{ padding: '2rem', maxWidth: 800 }}>
       <h2 style={{ marginBottom: '1rem' }}>Admin</h2>
       <p style={{ marginBottom: '1rem' }}>
-        <a href="#" style={{ color: '#1976d2' }}>Back to app</a>
+        <a href="#" style={{ color: '#3b82f6' }}>Back to app</a>
       </p>
-      {error && <p style={{ color: '#c62828', marginBottom: '1rem' }}>{error}</p>}
+      {error && <p style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</p>}
       {config && (
         <form onSubmit={handleSaveConfig} style={{ marginBottom: '2rem' }}>
           <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Model behavior</h3>
@@ -462,10 +462,10 @@ function AdminPage() {
       {usage && (
         <div style={{ marginBottom: '2rem' }}>
           <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Usage</h3>
-          <p style={{ fontSize: '0.875rem', color: '#555', marginBottom: '0.5rem' }}>
+          <p style={{ fontSize: '0.875rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
             Total requests: {usage.stats?.totalRequests ?? 0} · Errors: {usage.stats?.errorCount ?? 0} (rate: {usage.stats?.errorRate ?? 0})
           </p>
-          <p style={{ fontSize: '0.875rem', color: '#555', marginBottom: '0.5rem' }}>
+          <p style={{ fontSize: '0.875rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
             Top tools: {(usage.stats?.topTools || []).map((t) => `${t.name}: ${t.count}`).join(', ')}
           </p>
           <h4 style={{ fontSize: '0.875rem', marginTop: '1rem' }}>Recent requests</h4>
@@ -498,23 +498,23 @@ function AdminPage() {
       {feedbackList && (
         <div>
           <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>User feedback</h3>
-          <p style={{ fontSize: '0.875rem', color: '#555', marginBottom: '0.5rem' }}>
+          <p style={{ fontSize: '0.875rem', color: '#a1a1aa', marginBottom: '0.5rem' }}>
             Thumbs up/down and optional comments on agent responses. Newest first.
           </p>
           <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
             <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #e0e0e0' }}>Date</th>
-                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #e0e0e0' }}>Feedback</th>
-                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #e0e0e0' }}>User prompt</th>
-                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #e0e0e0' }}>Agent response</th>
-                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #e0e0e0' }}>Comment</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #3f3f46' }}>Date</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #3f3f46' }}>Feedback</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #3f3f46' }}>User prompt</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #3f3f46' }}>Agent response</th>
+                  <th style={{ textAlign: 'left', padding: '0.35rem', borderBottom: '1px solid #3f3f46' }}>Comment</th>
                 </tr>
               </thead>
               <tbody>
                 {(feedbackList.items || []).map((item) => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                  <tr key={item.id} style={{ borderBottom: '1px solid #27272a' }}>
                     <td style={{ padding: '0.35rem', whiteSpace: 'nowrap' }}>{item.createdAt ? new Date(item.createdAt).toLocaleString() : '—'}</td>
                     <td style={{ padding: '0.35rem' }}>{item.feedback === 'down' ? '👎 Down' : '👍 Up'}</td>
                     <td style={{ padding: '0.35rem', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.userPrompt}>{item.userPrompt || '—'}</td>
@@ -526,7 +526,7 @@ function AdminPage() {
             </table>
           </div>
           {(feedbackList.items || []).length === 0 && (
-            <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.5rem' }}>No feedback yet.</p>
+            <p style={{ fontSize: '0.875rem', color: '#71717a', marginTop: '0.5rem' }}>No feedback yet.</p>
           )}
         </div>
       )}
@@ -769,20 +769,20 @@ export default function App() {
   return (
     <div style={{ padding: '2rem', paddingBottom: '60vh', maxWidth: 800, margin: '0 auto', minHeight: '100vh' }}>
       <h1 style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Data-Agent</h1>
-      <p style={{ color: '#555', marginBottom: '0.5rem' }}>
-        <a href="#admin" style={{ color: '#666', fontSize: '0.875rem' }}>Admin</a>
+      <p style={{ color: '#a1a1aa', marginBottom: '0.5rem' }}>
+        <a href="#admin" style={{ color: '#71717a', fontSize: '0.875rem' }}>Admin</a>
       </p>
-      <p style={{ color: '#555', marginBottom: '1.5rem' }}>
+      <p style={{ color: '#a1a1aa', marginBottom: '1.5rem' }}>
         Ask for MRRpV or other metrics in plain language. Example: &ldquo;What was MRRpV by region last quarter?&rdquo;
       </p>
       {health && (
-        <p style={{ color: health.ok ? '#2e7d32' : '#c62828', marginBottom: '1rem', fontSize: '0.875rem' }}>
+        <p style={{ color: health.ok ? '#22c55e' : '#ef4444', marginBottom: '1rem', fontSize: '0.875rem' }}>
           Backend: {health.ok ? 'Connected' : 'Disconnected'}
         </p>
       )}
 
       <div style={{ marginBottom: '1rem' }}>
-        <span style={{ fontSize: '0.875rem', color: '#555', marginRight: '0.75rem' }}>Views:</span>
+        <span style={{ fontSize: '0.875rem', color: '#a1a1aa', marginRight: '0.75rem' }}>Views:</span>
         <select
           value={selectedViewId}
           onChange={(e) => {
@@ -794,10 +794,10 @@ export default function App() {
           style={{
             padding: '0.5rem 0.75rem',
             fontSize: '0.875rem',
-            background: '#fff',
-            border: '1px solid #e0e0e0',
+            background: '#18181b',
+            border: '1px solid #27272a',
             borderRadius: 6,
-            color: '#333',
+            color: '#e4e4e7',
             minWidth: 260,
             marginRight: '0.5rem',
           }}
@@ -809,7 +809,7 @@ export default function App() {
             </option>
           ))}
         </select>
-        {viewLoading && <span style={{ fontSize: '0.875rem', color: '#666' }}>Loading…</span>}
+        {viewLoading && <span style={{ fontSize: '0.875rem', color: '#71717a' }}>Loading…</span>}
         {viewsLoadError && (
           <span style={{ fontSize: '0.75rem', color: '#f59e0b', marginLeft: '0.5rem' }}>
             Preset views didn’t load
@@ -818,7 +818,7 @@ export default function App() {
             <button
               type="button"
               onClick={loadViews}
-              style={{ background: 'none', border: 'none', color: '#1976d2', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', padding: 0 }}
+              style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', padding: 0 }}
             >
               Retry
             </button>
@@ -827,8 +827,8 @@ export default function App() {
       </div>
 
       <div style={{ marginBottom: '1rem' }}>
-        <span style={{ fontSize: '0.875rem', color: '#555', marginRight: '0.75rem' }}>Data source:</span>
-        <div style={{ display: 'inline-flex', gap: 0, background: '#fff', border: '1px solid #e0e0e0', borderRadius: 6, padding: 2 }}>
+        <span style={{ fontSize: '0.875rem', color: '#a1a1aa', marginRight: '0.75rem' }}>Data source:</span>
+        <div style={{ display: 'inline-flex', gap: 0, background: '#18181b', border: '1px solid #27272a', borderRadius: 6, padding: 2 }}>
           {DATA_SOURCE_OPTIONS.map((opt) => (
             <button
               key={opt.id}
@@ -840,8 +840,8 @@ export default function App() {
                 border: 'none',
                 borderRadius: 4,
                 cursor: 'pointer',
-                background: dataSource === opt.id ? '#1976d2' : 'transparent',
-                color: dataSource === opt.id ? '#fff' : '#555',
+                background: dataSource === opt.id ? '#3b82f6' : 'transparent',
+                color: dataSource === opt.id ? '#fff' : '#a1a1aa',
                 fontWeight: dataSource === opt.id ? 600 : 400,
               }}
             >
@@ -853,9 +853,9 @@ export default function App() {
 
       <div
         style={{
-          background: '#fff',
+          background: '#18181b',
           borderRadius: 6,
-          border: '1px solid #e0e0e0',
+          border: '1px solid #27272a',
           padding: '0.35rem 0.5rem',
           marginBottom: '0.5rem',
           minHeight: 52,
@@ -864,7 +864,7 @@ export default function App() {
         }}
       >
         {messages.length === 0 && (
-          <p style={{ color: '#666', fontSize: '0.7rem', margin: 0 }}>
+          <p style={{ color: '#71717a', fontSize: '0.7rem', margin: 0 }}>
             Send a message to get started.
           </p>
         )}
@@ -874,10 +874,10 @@ export default function App() {
             style={{
               marginBottom: '0.2rem',
               padding: '0.15rem 0',
-              borderBottom: i < messages.length - 1 ? '1px solid #e0e0e0' : 'none',
+              borderBottom: i < messages.length - 1 ? '1px solid #27272a' : 'none',
             }}
           >
-            <span style={{ color: '#666', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase' }}>
+            <span style={{ color: '#71717a', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase' }}>
               {m.role === 'user' ? 'You' : 'Assistant'}
             </span>
             <p style={{ margin: '0.1rem 0 0', whiteSpace: 'pre-wrap', fontSize: '0.7rem', lineHeight: 1.25 }}>{m.content}</p>
@@ -886,13 +886,13 @@ export default function App() {
               const fb = feedbackByIndex[i];
               if (fb?.commentSubmitted) {
                 return (
-                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.7rem', color: '#2e7d32' }}>Thanks! Your comment was submitted.</p>
+                  <p style={{ margin: '0.35rem 0 0', fontSize: '0.7rem', color: '#22c55e' }}>Thanks! Your comment was submitted.</p>
                 );
               }
               if (fb?.id) {
                 return (
                   <div style={{ marginTop: '0.35rem' }}>
-                    <p style={{ fontSize: '0.7rem', color: '#2e7d32', marginBottom: '0.25rem' }}>Thanks for your feedback! Would you like to add a comment?</p>
+                    <p style={{ fontSize: '0.7rem', color: '#22c55e', marginBottom: '0.25rem' }}>Thanks for your feedback! Would you like to add a comment?</p>
                     <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
                       <input
                         type="text"
@@ -905,10 +905,10 @@ export default function App() {
                           minWidth: 180,
                           padding: '0.35rem 0.5rem',
                           fontSize: '0.75rem',
-                          background: '#f5f5f5',
-                          border: '1px solid #e0e0e0',
+                          background: '#27272a',
+                          border: '1px solid #3f3f46',
                           borderRadius: 4,
-                          color: '#333',
+                          color: '#e4e4e7',
                         }}
                       />
                       <button
@@ -931,7 +931,7 @@ export default function App() {
                         style={{
                           padding: '0.35rem 0.6rem',
                           fontSize: '0.75rem',
-                          background: '#1976d2',
+                          background: '#3b82f6',
                           color: '#fff',
                           border: 'none',
                           borderRadius: 4,
@@ -946,7 +946,7 @@ export default function App() {
               }
               return (
                 <div style={{ marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.65rem', color: '#666' }}>Was this helpful?</span>
+                  <span style={{ fontSize: '0.65rem', color: '#71717a' }}>Was this helpful?</span>
                   <button
                     type="button"
                     onClick={async () => {
@@ -964,9 +964,9 @@ export default function App() {
                     style={{
                       padding: '0.2rem 0.35rem',
                       background: 'transparent',
-                      border: '1px solid #e0e0e0',
+                      border: '1px solid #3f3f46',
                       borderRadius: 4,
-                      color: '#555',
+                      color: '#a1a1aa',
                       cursor: 'pointer',
                       fontSize: '0.875rem',
                     }}
@@ -990,9 +990,9 @@ export default function App() {
                     style={{
                       padding: '0.2rem 0.35rem',
                       background: 'transparent',
-                      border: '1px solid #e0e0e0',
+                      border: '1px solid #3f3f46',
                       borderRadius: 4,
-                      color: '#555',
+                      color: '#a1a1aa',
                       cursor: 'pointer',
                       fontSize: '0.875rem',
                     }}
@@ -1005,13 +1005,13 @@ export default function App() {
           </div>
         ))}
         {loading && (
-          <p style={{ color: '#666', fontSize: '0.875rem' }}>Thinking...</p>
+          <p style={{ color: '#71717a', fontSize: '0.875rem' }}>Thinking...</p>
         )}
         <div ref={bottomRef} />
       </div>
 
       {querySummary && (
-        <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.5rem' }}>
+        <p style={{ fontSize: '0.75rem', color: '#71717a', marginBottom: '0.5rem' }}>
           This query used: {querySummary.tool}
           {querySummary.dataSource ? `, source: ${querySummary.dataSource}` : ''}
           {querySummary.time_window ? `, time: ${querySummary.time_window}` : ''}
@@ -1034,7 +1034,7 @@ export default function App() {
         </p>
       )}
       {lastResult && lastResult.data?.length === 0 && !lastToolError && (
-        <p style={{ fontSize: '0.875rem', color: '#666', marginBottom: '0.5rem' }}>No rows for that period or filters.</p>
+        <p style={{ fontSize: '0.875rem', color: '#71717a', marginBottom: '0.5rem' }}>No rows for that period or filters.</p>
       )}
       {lastResult && lastResult.data?.length > 0 && (() => {
         const cols = lastResult.columns || [];
@@ -1070,7 +1070,7 @@ export default function App() {
         return (
           <div style={{ marginBottom: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-              <h3 style={{ fontSize: '0.875rem', color: '#555', margin: 0 }}>Result</h3>
+              <h3 style={{ fontSize: '0.875rem', color: '#a1a1aa', margin: 0 }}>Result</h3>
               <button
                 type="button"
                 onClick={() => restoreUnfilteredView()}
@@ -1079,10 +1079,10 @@ export default function App() {
                 style={{
                   fontSize: '0.75rem',
                   padding: '0.35rem 0.6rem',
-                  background: '#f5f5f5',
-                  border: '1px solid #e0e0e0',
+                  background: '#27272a',
+                  border: '1px solid #3f3f46',
                   borderRadius: 6,
-                  color: '#555',
+                  color: '#a1a1aa',
                   cursor: loading ? 'not-allowed' : 'pointer',
                 }}
               >
@@ -1090,7 +1090,7 @@ export default function App() {
               </button>
             </div>
             {o && !pivot.usePivot && !groupedPivot.useGroupedPivot && !bridgePivot?.usePivot && (
-              <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem', color: '#333' }}>
+              <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem', color: '#e4e4e7' }}>
                 <strong>Overall:</strong>
                 {o.fleet_mrrpv != null && ` $${Number(o.fleet_mrrpv).toFixed(2)} MRRpV`}
                 {o.vehicle_count != null && ` · ${Number(o.vehicle_count).toLocaleString()} vehicles`}
@@ -1105,8 +1105,8 @@ export default function App() {
             {lastResult.viewType === 'asp' && cols.some((c) => c.name === 'row_label') ? (
               (() => {
                 const quarterCols = cols.filter((c) => c.name !== 'row_label');
-                const borderThin = '1px solid #e0e0e0';
-                const borderThick = '2px solid #e0e0e0';
+                const borderThin = '1px solid #27272a';
+                const borderThick = '2px solid #3f3f46';
                 const productBlocks = [];
                 let i = 0;
                 while (i < displayData.length) {
@@ -1130,14 +1130,14 @@ export default function App() {
                 }
                 return (
                   <div style={{ marginBottom: '0.5rem' }}>
-                    <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 6 }}>
+                    <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                         <thead>
                           <tr>
-                            <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0', minWidth: '8.5rem' }}>Product</th>
-                            <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0', minWidth: '4rem' }}>Metric</th>
+                            <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: '8.5rem' }}>Product</th>
+                            <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: '4rem' }}>Metric</th>
                             {quarterCols.map((c) => (
-                              <th key={c.name} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0', minWidth: '4.5rem', whiteSpace: 'nowrap' }}>
+                              <th key={c.name} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: '4.5rem', whiteSpace: 'nowrap' }}>
                                 {c.name}
                               </th>
                             ))}
@@ -1174,7 +1174,7 @@ export default function App() {
                                     fmt = isASP ? `$${Number(v).toFixed(2)}` : formatAcvPivot(Number(v));
                                   }
                                   return (
-                                    <td key={c.name} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#1976d2', borderBottom: metricIdx < block.metrics.length - 1 ? borderThin : (borderAfter || borderThin) }}>
+                                    <td key={c.name} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#3b82f6', borderBottom: metricIdx < block.metrics.length - 1 ? borderThin : (borderAfter || borderThin) }}>
                                       {fmt}
                                     </td>
                                   );
@@ -1190,17 +1190,17 @@ export default function App() {
               })()
             ) : bridgePivot?.usePivot ? (
               <div style={{ marginBottom: '0.5rem' }}>
-                <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 6 }}>
+                <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }} />
+                        <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }} />
                         {bridgePivot.timeColumns.map((q) => (
-                          <th key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0', minWidth: '4.5rem', whiteSpace: 'nowrap' }}>
+                          <th key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: '4.5rem', whiteSpace: 'nowrap' }}>
                             {q}
                           </th>
                         ))}
-                        <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>
+                        <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }}>
                           Grand Total
                         </th>
                       </tr>
@@ -1209,14 +1209,14 @@ export default function App() {
                       {bridgePivot.metricRows.map((row) => {
                         const fmt = row.format || String;
                         return (
-                          <tr key={row.key} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                          <tr key={row.key} style={{ borderBottom: '1px solid #27272a' }}>
                             <td style={{ padding: '0.5rem 0.75rem', fontWeight: 500 }}>{row.label}</td>
                             {bridgePivot.timeColumns.map((q) => (
-                              <td key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#1976d2' }}>
+                              <td key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#3b82f6' }}>
                                 {fmt(row.valuesByQuarter[q])}
                               </td>
                             ))}
-                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#1976d2', fontWeight: row.boldGrandTotal ? 600 : undefined }}>
+                            <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#3b82f6', fontWeight: row.boldGrandTotal ? 600 : undefined }}>
                               {fmt(row.grandTotal)}
                             </td>
                           </tr>
@@ -1228,7 +1228,7 @@ export default function App() {
               </div>
             ) : groupedPivot.useGroupedPivot ? (
               <div style={{ marginBottom: '0.5rem' }}>
-                <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem', fontSize: '0.8125rem', color: '#555' }}>
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem', fontSize: '0.8125rem', color: '#a1a1aa' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
@@ -1246,14 +1246,14 @@ export default function App() {
                     Show Deal count
                   </label>
                 </div>
-                <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 6 }}>
+                <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
                     <tr>
                       {groupedPivot.isGeoSegment && (
-                        <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>Geo</th>
+                        <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }}>Geo</th>
                       )}
-                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0', minWidth: groupedPivot.isGeoSegment ? '8.5rem' : undefined }}>
+                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: groupedPivot.isGeoSegment ? '8.5rem' : undefined }}>
                         {groupedPivot.isGeoSegment ? 'Segment' : 'Industry'}
                       </th>
                       {groupedPivot.metricSpecs.map((spec, specIdx) => (
@@ -1263,21 +1263,21 @@ export default function App() {
                           style={{
                             textAlign: 'center',
                             padding: '0.5rem 0.75rem',
-                            background: '#f5f5f5',
-                            borderBottom: '1px solid #e0e0e0',
-                            borderRight: '2px solid #e0e0e0',
+                            background: '#27272a',
+                            borderBottom: '1px solid #3f3f46',
+                            borderRight: '2px solid #3f3f46',
                           }}
                         >
                           {spec.label}
                         </th>
                       ))}
-                      <th style={{ textAlign: 'center', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>
+                      <th style={{ textAlign: 'center', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }}>
                         Avg MRRpV
                       </th>
                     </tr>
                     <tr>
-                      {groupedPivot.isGeoSegment && <th style={{ padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }} />}
-                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0', minWidth: groupedPivot.isGeoSegment ? '8.5rem' : undefined }} />
+                      {groupedPivot.isGeoSegment && <th style={{ padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }} />}
+                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: groupedPivot.isGeoSegment ? '8.5rem' : undefined }} />
                       {groupedPivot.metricSpecs.map((spec) => (
                         <React.Fragment key={spec.key}>
                           {groupedPivot.timeColumns.map((q, qi) => (
@@ -1286,9 +1286,9 @@ export default function App() {
                               style={{
                                 textAlign: 'right',
                                 padding: '0.5rem 0.75rem',
-                                background: '#f5f5f5',
-                                borderBottom: '1px solid #e0e0e0',
-                                borderRight: qi === groupedPivot.timeColumns.length - 1 ? '2px solid #e0e0e0' : undefined,
+                                background: '#27272a',
+                                borderBottom: '1px solid #3f3f46',
+                                borderRight: qi === groupedPivot.timeColumns.length - 1 ? '2px solid #3f3f46' : undefined,
                                 minWidth: '4.5rem',
                                 whiteSpace: 'nowrap',
                               }}
@@ -1298,15 +1298,15 @@ export default function App() {
                           ))}
                         </React.Fragment>
                       ))}
-                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }} />
+                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }} />
                     </tr>
                   </thead>
                   <tbody>
                     {groupedPivot.isGeoSegment && groupedPivot.geoBlocks ? (
                       (() => {
-                        const borderThick = '2px solid #e0e0e0';
-                        const borderThin = '1px solid #e0e0e0';
-                        const totalBg = 'rgba(25, 118, 210, 0.08)';
+                        const borderThick = '2px solid #3f3f46';
+                        const borderThin = '1px solid #27272a';
+                        const totalBg = 'rgba(59, 130, 246, 0.08)';
                         const bodyRows = [];
                         groupedPivot.geoBlocks.forEach((block, blockIdx) => {
                           block.rows.forEach((rowGroup, rowIdx) => {
@@ -1382,8 +1382,8 @@ export default function App() {
                                         padding: '0.5rem 0.75rem',
                                         borderBottom: br.borderAfter || borderThin,
                                         borderTop: br.borderBefore,
-                                        borderRight: isLastInGroup ? '2px solid #e0e0e0' : borderThin,
-                                        color: '#1976d2',
+                                        borderRight: isLastInGroup ? '2px solid #3f3f46' : borderThin,
+                                        color: '#3b82f6',
                                       }}
                                     >
                                       {spec.format(v)}
@@ -1399,7 +1399,7 @@ export default function App() {
                                 borderBottom: br.borderAfter || borderThin,
                                 borderTop: br.borderBefore,
                                 borderRight: borderThin,
-                                color: '#1976d2',
+                                color: '#3b82f6',
                                 fontWeight: br.isTotal ? 600 : undefined,
                               }}
                             >
@@ -1414,20 +1414,20 @@ export default function App() {
                       groupedPivot.rowGroups.map((rowGroup, ri) => {
                         const isTotal = rowGroup.type === 'total' || rowGroup.type === 'grand';
                         const segmentLabel = rowGroup.type === 'segment' ? rowGroup.segment : rowGroup.type === 'industry' ? rowGroup.industry : rowGroup.label;
-                        const borderAfter = rowGroup.type === 'total' ? '2px solid #e0e0e0' : undefined;
-                        const borderBefore = rowGroup.type === 'grand' ? '2px solid #e0e0e0' : undefined;
-                        const borderGroup = '2px solid #e0e0e0';
+                        const borderAfter = rowGroup.type === 'total' ? '2px solid #3f3f46' : undefined;
+                        const borderBefore = rowGroup.type === 'grand' ? '2px solid #3f3f46' : undefined;
+                        const borderGroup = '2px solid #3f3f46';
                         return (
                           <tr
                             key={ri}
                             style={{
                               fontWeight: isTotal ? 600 : undefined,
-                              background: isTotal ? 'rgba(25, 118, 210, 0.08)' : undefined,
+                              background: isTotal ? 'rgba(59, 130, 246, 0.08)' : undefined,
                               borderTop: borderBefore,
                               borderBottom: borderAfter,
                             }}
                           >
-                            <td style={{ padding: '0.5rem 0.75rem', borderBottom: borderAfter || '1px solid #e0e0e0', borderTop: borderBefore }}>
+                            <td style={{ padding: '0.5rem 0.75rem', borderBottom: borderAfter || '1px solid #27272a', borderTop: borderBefore }}>
                               {segmentLabel}
                             </td>
                             {groupedPivot.metricSpecs.map((spec) => (
@@ -1441,10 +1441,10 @@ export default function App() {
                                       style={{
                                         textAlign: 'right',
                                         padding: '0.5rem 0.75rem',
-                                        borderBottom: borderAfter || '1px solid #e0e0e0',
+                                        borderBottom: borderAfter || '1px solid #27272a',
                                         borderTop: borderBefore,
                                         borderRight: isLastInGroup ? borderGroup : undefined,
-                                        color: '#1976d2',
+                                        color: '#3b82f6',
                                       }}
                                     >
                                       {spec.format(v)}
@@ -1457,9 +1457,9 @@ export default function App() {
                               style={{
                                 textAlign: 'right',
                                 padding: '0.5rem 0.75rem',
-                                borderBottom: borderAfter || '1px solid #e0e0e0',
+                                borderBottom: borderAfter || '1px solid #27272a',
                                 borderTop: borderBefore,
-                                color: '#1976d2',
+                                color: '#3b82f6',
                                 fontWeight: isTotal ? 600 : undefined,
                               }}
                             >
@@ -1476,17 +1476,17 @@ export default function App() {
                 </div>
               </div>
             ) : pivot.usePivot ? (
-              <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 6 }}>
+              <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }} />
+                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }} />
                       {pivot.timeColumns.map((q) => (
-                        <th key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0', minWidth: '4.5rem', whiteSpace: 'nowrap' }}>
+                        <th key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46', minWidth: '4.5rem', whiteSpace: 'nowrap' }}>
                           {q}
                         </th>
                       ))}
-                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>
+                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem', background: '#27272a', borderBottom: '1px solid #3f3f46' }}>
                         Grand Total
                       </th>
                     </tr>
@@ -1496,14 +1496,14 @@ export default function App() {
                       const spec = specFor(row.key);
                       const fmt = spec?.format || String;
                       return (
-                        <tr key={row.key} style={{ borderBottom: '1px solid #e0e0e0' }}>
+                        <tr key={row.key} style={{ borderBottom: '1px solid #27272a' }}>
                           <td style={{ padding: '0.5rem 0.75rem', fontWeight: 500 }}>{row.label}</td>
                           {pivot.timeColumns.map((q) => (
-                            <td key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#1976d2' }}>
+                            <td key={q} style={{ textAlign: 'right', padding: '0.5rem 0.75rem', color: '#3b82f6' }}>
                               {fmt(row.valuesByQuarter[q])}
                             </td>
                           ))}
-                          <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', fontWeight: 600, color: '#1976d2' }}>
+                          <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', fontWeight: 600, color: '#3b82f6' }}>
                             {fmt(row.grandTotal)}
                           </td>
                         </tr>
@@ -1513,7 +1513,7 @@ export default function App() {
                 </table>
               </div>
             ) : (
-              <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 6 }}>
+              <div style={{ overflowX: 'auto', border: '1px solid #27272a', borderRadius: 6 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
                     <tr>
@@ -1523,8 +1523,8 @@ export default function App() {
                           style={{
                             textAlign: 'left',
                             padding: '0.5rem 0.75rem',
-                            background: '#f5f5f5',
-                            borderBottom: '1px solid #e0e0e0',
+                            background: '#27272a',
+                            borderBottom: '1px solid #3f3f46',
                           }}
                         >
                           {col.name}
@@ -1534,13 +1534,13 @@ export default function App() {
                   </thead>
                   <tbody>
                     {tableRows.map((row, i) => (
-                      <tr key={i} style={row[cols[0]?.name] === 'Overall' ? { fontWeight: 600, background: 'rgba(25, 118, 210, 0.08)' } : undefined}>
+                      <tr key={i} style={row[cols[0]?.name] === 'Overall' ? { fontWeight: 600, background: 'rgba(59, 130, 246, 0.08)' } : undefined}>
                         {cols.map((col) => (
                           <td
                             key={col.name}
                             style={{
                               padding: '0.5rem 0.75rem',
-                              borderBottom: '1px solid #e0e0e0',
+                              borderBottom: '1px solid #27272a',
                             }}
                           >
                             {formatCell(col.name, row[col.name])}
@@ -1553,7 +1553,7 @@ export default function App() {
               </div>
             )}
             {(lastResult.rowCount > maxDisplay || displayData.length > maxDisplay) && !pivot.usePivot && !bridgePivot?.usePivot && (
-              <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
+              <p style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '0.25rem' }}>
                 Showing first {maxDisplay} of {Math.max(lastResult.rowCount ?? 0, displayData.length)} rows.
               </p>
             )}
@@ -1571,10 +1571,10 @@ export default function App() {
           style={{
             flex: 1,
             padding: '0.75rem 1rem',
-            background: '#fff',
-            border: '1px solid #e0e0e0',
+            background: '#18181b',
+            border: '1px solid #27272a',
             borderRadius: 6,
-            color: '#333',
+            color: '#e4e4e7',
             fontSize: '1rem',
           }}
         />
@@ -1583,7 +1583,7 @@ export default function App() {
           disabled={loading || !message.trim()}
           style={{
             padding: '0.75rem 1.25rem',
-            background: loading ? '#9e9e9e' : '#1976d2',
+            background: loading ? '#3f3f46' : '#3b82f6',
             color: '#fff',
             border: 'none',
             borderRadius: 6,

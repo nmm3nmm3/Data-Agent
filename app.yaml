@@ -1,0 +1,21 @@
+# Databricks App execution config (optional).
+# Place in project root. See: https://docs.databricks.com/dev-tools/databricks-apps/app-runtime
+#
+# The platform sets DATABRICKS_APP_PORT automatically; the backend uses it in backend/src/index.js.
+
+command:
+  - npm
+  - run
+  - start
+
+# Configure env in the Databricks app UI or here. For secrets use valueFrom (secret scope).
+# Example (replace with your secret scope/key names):
+# env:
+#   - name: OPENAI_API_KEY
+#     valueFrom: secret
+#   - name: DATABRICKS_TOKEN
+#     valueFrom: secret
+#   - name: DATABRICKS_HOST
+#     value: https://your-workspace.cloud.databricks.com
+#   - name: DATABRICKS_WAREHOUSE_HTTP_PATH
+#     value: /sql/1.0/warehouses/your-warehouse-id
